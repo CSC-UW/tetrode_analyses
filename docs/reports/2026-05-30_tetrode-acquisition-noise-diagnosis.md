@@ -1,0 +1,162 @@
+---
+title: ~400 Hz comb and ~9.87 Hz transient in Open Ephys tetrode recordings — likely WS2812 status-LED interference
+scope: tetrode_analyses
+status: needs_verification
+source: inference
+created: 2026-05-30
+last_updated: 2026-05-30
+confidence: medium
+confirmed_by_user: not_required
+---
+
+# Acquisition-noise diagnosis: ~400 Hz comb + ~9.87 Hz transient
+
+## TL;DR
+
+Two notebooks characterize a set of artifacts in Open Ephys tetrode recordings.
+A hardware reading of the (stock) Open Ephys acquisition board points to the
+**8 WS2812 status LEDs** as the most likely source of the ~400 Hz comb (and,
+plausibly, the ~9.87 Hz transient). This is independently corroborated by Open
+Ephys's own issue tracker. **The diagnosis is a testable hypothesis, not yet
+bench-confirmed.** The one decisive test: toggle the GUI **"LED"** button off
+and re-record.
+
+## Measured signatures (from the notebooks)
+
+Source notebooks (both reuse the same helpers, so the comparison is
+apples-to-apples):
+
+- `analyses/investigate_spectrum_and_artifact/spectral_and_artifact.ipynb`
+  (reference session `2026-05-19_18-09-51`, 24 selected-tetrode channels)
+- `analyses/subj01/subj01.ipynb` (`subj01`, `2026-05-27_09-07-52`, all 64 ch,
+  first 60 s)
+
+All three signatures are **internal to the digitization chain** — common-mode
+and tied to acquisition sample order, not to the brain, the tetrodes, or
+electrode geometry. Mains (60 Hz) contamination is at most modest.
+
+| Signature | Measurement | Interpretation |
+| --- | --- | --- |
+| **~400 Hz comb** | PSD ladder spaced `fs/75 ≈ 399–400 Hz` up to Nyquist; present on **all** channels (26/64 and 37/24 universal peaks within ±1 Hz) | Common-mode, clocked source upstream of the per-channel path |
+| **~9.87 Hz transient** | Modal inter-event interval **3038 samples ≈ 9.875 Hz**, predominantly negative, same across recordings; period ≈ **40.5 × the 75-sample ladder period** | Hardware-clocked; appears to share the acquisition timebase with the comb |
+| **Period-2 spatial pattern** | Artifact amplitude alternates sign every other channel **in Open-Ephys sample order** (spatial-FFT peak at k=32 → period 2.0 ch), and **vanishes when reordered by tetrode** | Multiplexer / two-phase-readout bound — internal to headstage + acquisition board |
+
+Key anchors: everything is (close to) a clean divide of the 30 kHz master clock
+(`30000/75 = 400`; `3037.5 = 40.5×75`), common-mode, and sample-order-bound.
+
+## Hardware reading of the board (`acquisition-board/`)
+
+The directory is the **stock Open Ephys board** (`origin:
+open-ephys/acquisition-board`, clean tree at upstream `8bf3c0c`) — i.e. the
+**Intan RHD2000 evaluation-board design** (all parts labeled
+`RHD2000_EVAL_BOARD_*`). Verified from the KiCad-converted schematic sheets:
+
+- **Clocking** — master clock is on the Opal Kelly **XEM6010** module (no
+  on-board crystal). The FPGA divides it to make the 30 kHz frame clock, the SPI
+  clock, and a board-level `CLOCK_5V`. (README says "XEM-6310"; the design files
+  are the older XEM6010 variant — cosmetic, not the cause.)
+- **Power tree (`SS_4`)** — *both analog rails come from switchers*: `LTC3426`
+  boost (raw `+5V` → `+5V5`, ~1.2 MHz) → `TPS60403` charge pump (`+5V5` →
+  `-5.5V`) → LDOs make `+5VA / -5VA / +5VD`.
+- **Aux analog (`SS_2/3/6`)** — 8× `ADS8325` ADCs, 8× `DAC8531` DACs, `OPA4170`
+  buffers, 2× `REF195` ("VOLTAGE REF FOR ADCs/DACs"), all FPGA-serviced.
+- **Headstage power (`SS_7`)** — four `TPS79301` LDOs ("+3.5V regulator for
+  RHD2000 SPI port A/B/C/D"), **fed from the raw `+5V` rail**.
+- **LEDs (`SS_5`)** — 8× **WS2812** (LED1–8), daisy-chained, **powered from the
+  same raw `+5V` rail**, driven from the FPGA through level-shifter `LS_LED218`
+  and a series resistor into LED1's data-in.
+- **Grounding** — a **single shared `GND`** net across the whole design (no
+  split AGND/DGND).
+
+Two design facts make a clocked, common-mode comb easy to produce:
+
+1. **Single shared ground + switcher-derived analog rails.** Every digital
+   return current (FPGA, SPI transceivers, charge pump, LEDs) flows through the
+   same ground the headstage reference uses; LDO PSRR rolls off at higher
+   frequency.
+2. **High-current periodic digital loads share `+5V` with the headstage
+   regulators.** Any periodic current pulse on `+5V` modulates the headstage LDO
+   inputs and the shared ground → a common-mode wobble identical on every
+   channel. A *periodic* pulse train produces a *harmonic comb* up to Nyquist —
+   exactly the observed ladder.
+
+## Independent corroboration
+
+Open Ephys's own hardware tracker has an issue titled **"400Hz noise in DAC"**
+(`open-ephys/acquisition-board#2`) whose body states: *"there seems to be some
+bleeding from the status LEDs to the DAC out … we're not completely clear on why
+this happens yet."* That is the vendor attributing a ~400 Hz artifact to the
+status LEDs (the same WS2812 bank). Their report is about DAC *output*; ours is
+about the recorded *input* — but the coupling mechanism (LED current bleeding
+into the shared analog/supply/ground) is the same and would affect both.
+
+## Diagnosis and ranked suspects
+
+The standout suspect is the **WS2812 LED bank**:
+
+- On the **shared `+5V` rail** with the headstage power and a **single ground**.
+- 8 addressable LEDs draw large **pulsed** current; the WS2812/WS2812B internal
+  PWM dimming runs in the few-hundred-Hz range — suggestively near the observed
+  ~400 Hz ladder.
+- The FPGA **refreshes the LED string periodically** → a burst + current step
+  per refresh, the natural candidate for the ~9.87 Hz transient. Because the
+  FPGA generates both LED timing and the 30 kHz acquisition clock, they can be
+  mutually locked (explaining the near-clean 40.5× ratio).
+- It is the **single most recent change to the design** (HEAD `8bf3c0c`
+  "Replaced RGBs with WS2812B").
+
+Ranked: (1) WS2812 LEDs on shared `+5V`/ground; (2) FPGA-scheduled aux-I/O
+servicing (DAC8531 / ADS8325 / `REF195`) glitching the shared reference at
+`fs/75`; (3) switching-rail (LTC3426 / TPS60403) ripple aliasing down;
+(4) anything on the 5V fan header.
+
+The **period-2 channel pattern** localizes the *coupling/sampling* to the
+**two-phase digitization** (an RHD2164 reading its two 32-ch banks on
+interleaved MISO/DDR lines, or two RHD2132s interleaved by the FPGA), so a
+supply/reference glitch lands with opposite polarity on adjacent channels. This
+link depends on the headstage chip + FPGA firmware, not the PCB alone, so it is
+the most inferential step.
+
+## How to confirm / fix
+
+1. **GUI "LED" toggle (do this first).** The Open Ephys Acquisition Board plugin
+   has a button labeled **"LED"** that turns the board LEDs on/off. Turn it off
+   and re-record 60 s. If the comb and/or transient collapse → LEDs confirmed.
+   This needs no hardware change.
+2. **High-resolution discrimination test** (added as section 8 of
+   `spectral_and_artifact.ipynb`): 10 s Welch windows (0.1 Hz bins) + a fit of
+   comb teeth to `f = spacing × order`. If the spacing is exactly `fs/75 =
+   400.000 Hz` → clock-locked (FPGA-scheduled aux I/O); if it is significantly
+   off (e.g. ~399 Hz) and not a clean divide → free-running, consistent with the
+   LED PWM. The current 1 Hz bins cannot tell these apart.
+3. **Hardware fallbacks** (if the GUI toggle is insufficient or you want the LEDs
+   electrically dead): remove the series resistor on the LED data line (LED1
+   data-in) so the chain receives no data and stays in its power-on-off state
+   (no PWM current), or depopulate the 8 WS2812 LEDs. **Optically covering the
+   LEDs does nothing** — the noise is from their electrical current, not their
+   light.
+4. **Clean-power test.** Run the board from a linear bench supply or battery (not
+   USB), or add bulk decoupling on `+5V`, to gauge the switching-rail
+   contribution.
+
+## Caveats (measured vs inferred)
+
+- **Measured (notebooks):** the three signatures, their common-mode nature, the
+  sample-order period-2 structure, and the near-clean 40.5× rate ratio.
+- **Verified (schematic):** board identity, the power tree, the single ground,
+  and that the WS2812 LEDs share `+5V` with the headstage regulators.
+- **External corroboration:** Open Ephys issue #2 blames the status LEDs for a
+  ~400 Hz artifact.
+- **Inferred (not yet bench-confirmed here):** that the LEDs are *the* dominant
+  source in these specific recordings, and the two-phase-readout origin of the
+  period-2 pattern. The GUI "LED" off test (step 1) settles the first in one
+  recording.
+
+## References
+
+- Notebooks: `tetrode_analyses/analyses/investigate_spectrum_and_artifact/spectral_and_artifact.ipynb`,
+  `tetrode_analyses/analyses/subj01/subj01.ipynb`
+- Board: `acquisition-board/` (schematic sheets `kicad_converted/acquisition-board_SS_{1..7}.sch`;
+  power tree `SS_4`, LEDs `SS_5`, headstage LDOs `SS_7`)
+- Open Ephys issue: <https://github.com/open-ephys/acquisition-board/issues/2> ("400Hz noise in DAC")
+- GUI LED control: <https://open-ephys.github.io/gui-docs/User-Manual/Plugins/Acquisition-Board.html>
