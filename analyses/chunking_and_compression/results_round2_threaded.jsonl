@@ -1,0 +1,8 @@
+{"compressor": "blosc-zstd-l5-bitshuffle", "shape": "t1s_c4", "time_chunk": 30000, "chan_chunk": 4, "ratio": 1.693, "disk_MB": 408.3, "write_MBps": 122.4, "aligned_group_read_MBps": 869.5, "chan_amplification": 1}
+{"compressor": "blosc-zstd-l5-bitshuffle", "shape": "t10s_c4", "time_chunk": 300000, "chan_chunk": 4, "ratio": 1.733, "disk_MB": 398.9, "write_MBps": 163.9, "aligned_group_read_MBps": 1220.7, "chan_amplification": 1}
+{"compressor": "blosc-zstd-l5-bitshuffle", "shape": "t30s_c4", "time_chunk": 900000, "chan_chunk": 4, "ratio": 1.733, "disk_MB": 398.8, "write_MBps": 184.5, "aligned_group_read_MBps": 1821.5, "chan_amplification": 1}
+{"compressor": "blosc-zstd-l5-bitshuffle", "shape": "t30s_c64", "time_chunk": 900000, "chan_chunk": 64, "ratio": 1.699, "disk_MB": 406.9, "write_MBps": 607.0, "aligned_group_read_MBps": 62.2, "chan_amplification": 16}
+{"compressor": "wavpack-l1", "shape": "t1s_c4", "time_chunk": 30000, "chan_chunk": 4, "ratio": 2.046, "disk_MB": 337.9, "write_MBps": 59.0, "aligned_group_read_MBps": 107.5, "chan_amplification": 1}
+{"compressor": "wavpack-l1", "shape": "t10s_c4", "time_chunk": 300000, "chan_chunk": 4, "ratio": 2.049, "disk_MB": 337.3, "write_MBps": 80.8, "aligned_group_read_MBps": 127.1, "chan_amplification": 1}
+{"compressor": "wavpack-l1", "shape": "t30s_c4", "time_chunk": 900000, "chan_chunk": 4, "ratio": 2.049, "disk_MB": 337.3, "write_MBps": 82.3, "aligned_group_read_MBps": 137.4, "chan_amplification": 1}
+{"compressor": "wavpack-l1", "shape": "t30s_c64", "time_chunk": 900000, "chan_chunk": 64, "ratio": 2.05, "disk_MB": 337.3, "write_MBps": 107.1, "aligned_group_read_MBps": 8.2, "chan_amplification": 16}
