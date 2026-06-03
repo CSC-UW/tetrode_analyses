@@ -4,7 +4,7 @@ scope: tetrode_analyses
 status: active
 source: measurement
 created: 2026-05-30
-last_updated: 2026-05-30
+last_updated: 2026-05-31
 confidence: high
 confirmed_by_user: true
 ---
@@ -202,6 +202,32 @@ and `read_zarr(...).has_time_vector()` is `True`; if you need the time vector
 | `05_bench_inband_error.py` | 300–6000 Hz error vs noise floor |
 | `07_bench_chunk_shapes.py` / `results_chunk_shapes.jsonl` | channel chunk 1/4/64, size-matched; closes the chunk-size & c1 gaps |
 | `06_convert.py` | **production conversion script** (`--compressor {wavpack,blosc-zstd}`) |
+| `09_make_lfps.py` | 30 kHz store → **625 Hz** full-probe LFP (`make_lfp`) + verification plot |
+| `10_sort_ms5.py` / `12_sort_seeded_and_compare.py` | MountainSort5 sort by tetrode group; aggregate + summary |
+| `13_make_subsampled_lfp.py` | 625 Hz LFP → **125 Hz** 16 tetrode-lead LFP (`make_subsampled_lfp`, ÷5 anti-aliased `resample`) → `*.lfp.125hz.zarr` + verification plot |
+| `14_launch_loupe.py` | launch a **loupe** viewer: synthetic EMG (per_window + global) on top, then 16 sub-LFP traces (dense, colored by tetrode) over a spike raster split/colored by tetrode; `--sorting {blosc-zstd,wavpack-bps2.25}` (default `blosc-zstd`) |
+
+## Subsampled LFP + viewer
+
+`13_make_subsampled_lfp.py` keeps one lead channel per tetrode (every 4th
+channel — overridable via `make_subsampled_lfp(..., channel_ids=[...])`) and
+resamples the 625 Hz LFP to 125 Hz. It reuses `make_lfp`'s `resample` step: an
+**integer** ratio (625/125 = 5) makes `resample` dispatch to the anti-aliased
+`scipy.signal.decimate` instead of its FFT fallback (which SpikeInterface warns
+against for non-integer ratios — it assumes periodicity and rings at the edges).
+`resample_rate` must divide the parent rate, so 125 Hz (or 625/5) is the natural
+target; a clean ÷6 → 104.17 Hz isn't an integer rate and is rejected. The store
+matches `make_lfp`'s conventions, so `open_lfps_dataarray` reads it unchanged
+(dims `(time, channel)`; `time`/`channel`/`tetrode` coords; `fs`/`units` attrs).
+
+`14_launch_loupe.py` stacks three panes: the synthetic EMG (both estimators,
+loaded from `synthetic_emg_methods.zarr`; see `analyses/emg/`), the 16 dense LFP
+traces, and the spike raster. LFP traces and the raster are colored by tetrode
+with the 16-color Open Ephys "Classic" channel palette (`tetrode_analyses.viz`).
+Spike times come straight from SpikeInterface: the 30 kHz source recording (which
+carries the session-relative time vector) is registered to the sorting, and
+`get_unit_spike_train(return_times=True)` converts frames to seconds — so EMG,
+LFP, and spikes share one clock.
 
 Reproduce via the workspace env, e.g.
 `cd gfys_workspace && uv run python ../tetrode_analyses/analyses/chunking_and_compression/02_bench_matrix.py`.

@@ -16,12 +16,28 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Needed only by build_tetrode_probegroup / attach_tetrode_probegroup, which build
-# a probeinterface ProbeGroup to attach to a SpikeInterface recording. The
-# extractor itself is supplied by the caller, so spikeinterface is not a dependency
-# here. probeinterface is a third-party PyPI package (also a transitive dependency
-# of spikeinterface), imported lazily inside those functions.
-si = ["probeinterface"]
+# Needed by tetrode_analyses.spikeinterface (get_recording / convert_recording)
+# and the MountainSort5 sorting pipeline. spikeinterface pulls numcodecs, zarr,
+# scipy, and probeinterface transitively; wavpack-numcodecs and mountainsort5 are
+# third-party PyPI packages.
+sorting = [ 
+    "probeinterface",
+    "spikeinterface",
+    "mountainsort5",
+    "wavpack-numcodecs",
+]
+# Needed by tetrode_analyses.power (instantaneous + STFT bandpower) and
+# tetrode_analyses.plotting (SWA timetraces). ecephys supplies the signal
+# processing (xrsig/npsig: bandpass, Hilbert, decimation, STFT) and pulls scipy +
+# ssqueezepy transitively. ecephys is a sibling workspace package, declared as a
+# direct git URL per the workspace dual-use install pattern (only gfys_workspace
+# overrides it to a local editable path). zarr backs the on-disk xarray products.
+analysis = [
+    "ecephys @ git+https://github.com/CSC-UW/ecephys.git@develop",
+    "matplotlib",
+    "seaborn",
+    "zarr",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.2,<0.10.0"]

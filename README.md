@@ -42,3 +42,18 @@ by_tetrode[0].get_channel_ids()   # ['CH40', 'CH38', 'CH36', 'CH34'] == TT1
 declared in the optional `si` extra (`pip install -e '.[si]'` / `uv sync --extra si`).
 The SpikeInterface extractor is supplied by the caller, so `spikeinterface` itself is
 not a dependency of this package.
+
+## Analysis library modules
+
+Heavier submodules are imported directly (not re-exported from `__init__`, to keep
+`import tetrode_analyses` light). They require the optional `analysis` extra
+(`uv sync --extra analysis`: `ecephys`, `matplotlib`, `seaborn`, `zarr`).
+
+| Module | Key functions |
+| --- | --- |
+| `tetrode_analyses.lfp` | `make_lfp`, `open_lfps_dataarray` — produce / load the 625 Hz LFP Zarr (`sorting` extra). |
+| `tetrode_analyses.experiment` | `ExperimentParams`, `load`/`save_experiment_params`, `read_session_t0_unix`, `dt2t`/`t2dt`, `get_light_dark_periods`, `get_deprivation_period` — WNE-style `experiment_params.json` and wall-clock↔session-time mapping. |
+| `tetrode_analyses.power` | `extract_instantaneous_bandpower` (bandpass + Hilbert), `compute_stft_bandpowers` (4 s DPSS STFT), both averaged per tetrode; `save`/`open` helpers; `replace_outliers` / `replace_outliers_per_tetrode` (histogram-gap artifact removal). `BANDS` defines the frequency bands. |
+| `tetrode_analyses.plotting` | `plot_swa_timetrace`, `plot_lights_overlay`, `plot_deprivation_overlay`, `plot_swa_overview`, `plot_swa_small_multiples` — SWA timetraces with light/dark + deprivation overlays. |
+
+See `analyses/swa/` for the end-to-end SWA (delta power) pipeline built on these.
