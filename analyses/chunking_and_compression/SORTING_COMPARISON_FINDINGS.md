@@ -60,6 +60,97 @@ sorter variability. (wavpack sort 188.1 min.) See caveats below for the framing
 (user-confirmed 2026-06-03: the gap is a clean compression effect on the *raw*
 sort; whether it touches well-isolated units is the open question, pending curation).
 
+### int16 quantization of the preprocessed binary vs float32 (`16_sort_int16_and_compare.py`)
+Same blosc store, same seed + deterministic PCA, but the materialized bandpass+CMR
+binary is written as **int16** instead of float32 — i.e. the sorter input is
+quantized to integer ADC-count resolution (the original acquisition resolution;
+post-CMR std ≈ 80 counts, no clipping, ~48 dB quant SNR; SI casts via `astype`,
+truncation toward zero, so a slight ≤1-count bias toward zero). Compared against
+the float32 `blosc-A` reference:
+
+| unit set | float32 | int16 | matched | mean agreement |
+|---|---|---|---|---|
+| all units | 781 | 783 | 406 | 0.780 |
+| FR ≥ 0.1 Hz | 317 | 302 | 193 | 0.783 |
+| FR ≥ 0.5 Hz | 139 | 137 | 102 | 0.799 |
+| FR ≥ 1.0 Hz | 96 | 92 | 75 | 0.815 |
+
+This required fixing a real SpikeInterface bug first: `write_binary` sized the file
+and per-chunk seek offsets by the *source* dtype while casting to the *target*
+dtype, so `save(dtype="int16")` produced a corrupt 2×-too-large binary (the
+materialize aborted at a `set_times` assertion). Fix + regression test in the SI
+checkout (`core/time_series_tools.py`, `test_write_binary_dtype_conversion`).
+
+### Perturbation ladder (all vs the deterministic float32 sort, match≥0.5, all units)
+| perturbation | in-band err vs noise | agreement | matched | Δ from ceiling | agreement FR≥1 Hz |
+|---|---|---|---|---|---|
+| none (blosc-vs-blosc, determinism ceiling) | 0 | **1.000** | 781/781 | — | 1.000 |
+| wavpack lossy (bps=6.0) | 0.01× (0.18 µV) | **0.780** | 423 | 0.220 | 0.830 |
+| int16 quantization (integer ADC counts) | ~1-count trunc | **0.780** | 406 | 0.220 | 0.815 |
+| wavpack lossy (bps=2.25) | 0.19× (3.41 µV) | **0.708** | 278 | 0.292 | 0.830 |
+
+**Key finding — agreement plateaus at ~0.78 and does NOT climb toward 1.0 as
+fidelity increases.** bps=6.0's in-band error is ~19× smaller than bps=2.25's
+(0.01× vs 0.19× the noise floor — near-lossless), yet its agreement (0.780) is
+identical to int16's and only marginally above bps=2.25's 0.708. So the ~0.22
+shortfall from the determinism ceiling is **not driven by the magnitude of the
+compression error** — even a sub-noise (0.01×) perturbation flips roughly the
+same fraction of units as a 0.19× one. This is the signature of a **raw,
+over-split sort dominated by marginal fragment/noise units sitting on clustering /
+cross-block-label-matching decision boundaries**: any input perturbation, however
+tiny, reshuffles them. (Consistent with the determinism finding that the sort is
+bit-exact only when the input is bit-identical.)
+
+**Implication (NOT user-confirmed science):** raising `bps` does **not** recover
+agreement — bps=6.0 buys near-zero error but only 2.66× compression (~233 GB vs
+blosc's ~325 GB) and still lands at 0.78. So the lossy-vs-lossless gap is an
+artifact of the uncurated sort's instability, not of compression fidelity per se.
+The decision-relevant question is therefore **curation** (resolved below): the raw
+plateau is a fragment artifact; on well-isolated units the fidelity ordering
+re-emerges.
+
+## Curated agreement — well-isolated units (`19_`, `20_`)
+Quality metrics computed on the lossless reference `blosc-A` (781 units,
+`19_metric_distributions.py`; `metric_distributions_blosc-A.{png,csv}`) showed that
+the lab's default tiers don't transfer to this 48 h scheme-3 sort: **`snr`**
+(median 9.7) and **`amplitude_cutoff`** (≈0) don't discriminate (all units are loud
+and complete), and **`presence_ratio`** (median **0.04**) collapses any cutoff —
+but that reflects scheme-3's per-block units not being merged across the 48 h, i.e.
+tracking duration, **not** isolation. The metrics that actually separate are
+refractory: **`isi_violations_ratio`** (median 1.29 — the median raw unit is
+contaminated) and **`rp_contamination`**.
+
+"Well-isolated" was therefore defined (user-confirmed 2026-06-05) on
+`isi_violations_ratio` + `rp_contamination` + a `firing_rate` floor, three tiers,
+`presence_ratio` dropped. Good-unit counts on `blosc-A`: **permissive 104 /
+moderate 61 / conservative 30** (of 781). Each perturbed sort was matched against
+`blosc-A`, then restricted to the good reference units (`20_curated_agreement.py`).
+
+*mean agreement among matched / fraction of good units reproduced (match≥0.5):*
+| reference set | n | bps2.25 | int16 | bps6.0 |
+|---|---|---|---|---|
+| all units (raw) | 781 | 0.71 / 0.36 | 0.78 / 0.52 | 0.78 / 0.54 |
+| permissive | 104 | 0.71 / 0.72 | 0.82 / 0.81 | 0.83 / 0.86 |
+| moderate | 61 | 0.72 / 0.84 | 0.85 / 0.82 | 0.87 / 0.85 |
+| conservative | 30 | 0.77 / 0.90 | 0.86 / 0.87 | 0.88 / 0.90 |
+
+**Interpretation (framing user-confirmed 2026-06-05):**
+1. **Well-isolated units are largely preserved.** Reproduction (match fraction) rises
+   from 0.36–0.54 (raw, fragment-dominated) to **0.85–0.90** at moderate/conservative —
+   the low raw numbers were over-split fragments, not loss of real units.
+2. **Fidelity matters on good units** — the raw "plateau" was an artifact. Among matched
+   good units, bps=2.25 (**0.72–0.77**) is clearly worse than int16 (~0.85) and bps=6.0
+   (**0.87–0.88**); more bits → faithfully preserved spike trains.
+3. **But agreement caps ~0.88 even near-lossless** (bps6.0, 0.01× noise). Even
+   well-isolated units' spike trains are perturbed ~12% by *any* lossy compression
+   (the determinism ceiling is 1.0, so this is purely compression). So lossy is not
+   "free" even for good units — there is an irreducible ~0.12 perturbation.
+4. **Decision support:** the original "bps=2.25 too low" judgment holds even on good
+   units (0.72–0.77). Raising to bps=6.0 lifts good units to ~0.88 but only buys 2.66×
+   (~233 GB) vs lossless 2.05× (~325 GB) — a modest ratio gain for a still-imperfect
+   match. Whether ~0.88 clears the production bar is the user's call; if not, lossless
+   is the safer choice for roughly the same size.
+
 ## Prior run (contrast): seeded, global CMR (`whitening_seed=42`, no PCA fix)
 Scripts: `12_sort_seeded_and_compare.py` (both stores; produced blosc),
 `13_sort_wavpack_and_compare.py` (wavpack-only resume after a shared-disk abort,
@@ -212,10 +303,15 @@ materialize. Solver-probe data: `pca_solver_probe_600s.csv` (rows 1–64 = 600 s
 3. Consider tuning scheme 3 to reduce over-splitting on 48 h data.
 
 ## Outputs (`/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/`)
-- `*.wavpack-bps2.25.zarr` (94 GB), `*.blosc-zstd.zarr` (377 GB), `*.lfp.zarr` (625 Hz)
-- `sortings_seed42_pcafix/{blosc-A,blosc-B,wavpack-bps2.25}/aggregated/` + `by_group/`
-  (canonical post-fix run)
-- `sortings_seed42_pcafix/sorting_summary.json`, `sortings_seed42_pcafix/comparison_summary.json`
+- `*.wavpack-bps2.25.zarr` (94 GB), `*.wavpack-bps6.0.zarr` (233 GB), `*.blosc-zstd.zarr` (377 GB), `*.lfp.zarr` (625 Hz)
+- `sortings_seed42_pcafix/{blosc-A,blosc-B,wavpack-bps2.25,blosc-int16,wavpack-bps6.0}/aggregated/` + `by_group/`
+  (canonical post-fix run; `blosc-int16` = int16-materialize quantization test;
+  `wavpack-bps6.0` = high-fidelity lossy test, `18_sort_bps6_and_compare.py`)
+- `sortings_seed42_pcafix/sorting_summary.json`, `sortings_seed42_pcafix/comparison_summary.json`,
+  `sortings_seed42_pcafix/comparison_int16_summary.json`, `sortings_seed42_pcafix/comparison_bps6_summary.json`,
+  `sortings_seed42_pcafix/comparison_curated_summary.json` (curated, well-isolated)
+- curation: `metric_distributions_blosc-A.{png,csv}`, `metric_distributions_summary.json`
+  (`19_metric_distributions.py`); curated agreement `20_curated_agreement.py`
 - `slice_table.csv`, `conversion_results.json`
 - (`sortings_seed42/` — seeded-only run — deleted 2026-06-03; `sortings/` — original
   unseeded run — deleted 2026-06-01)

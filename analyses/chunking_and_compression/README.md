@@ -130,9 +130,24 @@ floor:
 | `bps` | ratio | 667 GB → | in-band err | err / noise floor | max abs err |
 |---|---|---|---|---|---|
 | 0 (lossless) | 2.05× | ~325 GB | 0 | 0 | 0 |
+| 8.0 | 2.16× | ~309 GB | 0.05 µV | 0.00× | 0.8 µV |
+| 6.0 | 2.66× | ~251 GB | 0.18 µV | 0.01× | 1.9 µV |
+| 5.5 | 2.86× | ~233 GB | 0.27 µV | 0.01× | 2.7 µV |
+| 5.0 | 3.15× | ~212 GB | 0.40 µV | 0.02× | 3.5 µV |
+| 4.5 | 3.40× | ~196 GB | 0.53 µV | 0.03× | 4.9 µV |
+| 4.0 | 3.91× | ~170 GB | 0.81 µV | 0.04× | 6.6 µV |
 | 3.5 | 4.35× | ~153 GB | 1.10 µV | 0.06× | 9.6 µV |
 | 3.0 | 5.24× | ~127 GB | 1.68 µV | 0.09× | 14 µV |
 | **2.25** | **7.10×** | **~94 GB** | 3.41 µV | **0.19×** | 45 µV |
+
+Extended bps sweep (`17_bench_bps_extended.py`, regenerates this whole table;
+reproduces the original 0/2.25/3.0/3.5 rows). The high-bps end shows steep
+diminishing returns: by `bps=4.0` the in-band error is already <0.05× the noise
+floor, and above that the ratio falls below 4× while at `bps=8.0` it is barely
+better than lossless (2.16× vs 2.05×). The compression-error/ratio trade-off does
+**not** by itself say which `bps` yields acceptable *sorting* agreement — that
+requires sorting at the candidate `bps` and comparing (cf. the `bps=2.25` result
+in `SORTING_COMPARISON_FINDINGS.md`).
 
 At **bps=2.25** the sorting-band error is ~5× below the noise the sorter already
 contends with (effective noise √(18.1²+3.4²) = 18.4 µV, **+1.8 %**). This is the
@@ -200,6 +215,7 @@ and `read_zarr(...).has_time_vector()` is `True`; if you need the time vector
 | `03_bench_threaded_aligned.py` / `results_round2_threaded.jsonl` | production-threaded, chunk-aligned read throughput |
 | `04_bench_wavpack_hybrid.py` | lossless vs `bps` 2.25/3.0/3.5/4.0: ratio + error |
 | `05_bench_inband_error.py` | 300–6000 Hz error vs noise floor |
+| `17_bench_bps_extended.py` / `results_bps_ext.json` | extended `bps` sweep (0–8.0): ratio + in-band err + noise floor + max abs err; regenerates the `bps` table above |
 | `07_bench_chunk_shapes.py` / `results_chunk_shapes.jsonl` | channel chunk 1/4/64, size-matched; closes the chunk-size & c1 gaps |
 | `06_convert.py` | **production conversion script** (`--compressor {wavpack,blosc-zstd}`) |
 | `09_make_lfps.py` | 30 kHz store → **625 Hz** full-probe LFP (`make_lfp`) + verification plot |

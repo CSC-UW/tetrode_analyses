@@ -1,8 +1,8 @@
 """Generate synthetic EMG (both methods) for TTM-001 / TTM-NOD and plot it
 alongside SWA (delta power) with a lights-on/off + sleep-deprivation overlay.
 
-Two EMG estimators are computed on the same decimated LFP (see
-`ecephys.emg_from_lfp`):
+Two EMG estimators are computed on the same decimated LFP (via
+`ecephys.xrsig.synthetic_emg`, backed by the `emg_from_lfp` package):
   - "per_window": exact per-window mean pairwise Pearson correlation (default).
   - "global":     faster amplitude-weighted global-normalization approximation.
 

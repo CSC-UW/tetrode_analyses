@@ -128,6 +128,7 @@ def sort_store(
     sort_n_jobs: int = 4,
     keep_cmr_cache: bool = False,
     cmr_cache_dir: str | pathlib.Path | None = None,
+    materialize_dtype: str = "float32",
     sorter_params: dict | None = None,
 ):
     """Sort one tetrode Zarr store with MountainSort5 scheme 3, by tetrode group.
@@ -152,6 +153,12 @@ def sort_store(
     deterministic, repeated sorts of the SAME store (e.g. determinism replicates)
     can point at one shared cache and skip re-materializing it; an external cache
     is owned by the caller and is never auto-deleted (``keep_cmr_cache`` is moot).
+
+    ``materialize_dtype`` is the dtype of the materialized bandpass+CMR binary
+    (default ``"float32"``). ``"int16"`` quantizes the preprocessed traces to
+    integer ADC-count resolution (gain not applied at this stage), i.e. stores
+    the sorter input at the original acquisition resolution -- used to test the
+    effect of int16 quantization on the sort vs the float32 reference.
     """
     store_zarr = pathlib.Path(store_zarr)
     output_dir = pathlib.Path(output_dir)
@@ -175,9 +182,13 @@ def sort_store(
             shutil.rmtree(cmr_cache, ignore_errors=True)
     if pp_mat is None:
         pp = preprocess_for_sorting(rec, cmr=cmr)
-        print(f"  materializing bandpass+CMR -> {cmr_cache} ...", flush=True)
+        print(f"  materializing bandpass+CMR -> {cmr_cache} (dtype={materialize_dtype}) ...", flush=True)
+        # bandpass + CMR are computed in float32; the binary is written as
+        # materialize_dtype. "int16" stores the preprocessed traces at integer
+        # ADC-count resolution (the original acquisition resolution; gain not
+        # applied here) -- a quantization of the sorter input vs "float32".
         pp_mat = pp.save(
-            format="binary", folder=str(cmr_cache), dtype="float32",
+            format="binary", folder=str(cmr_cache), dtype=materialize_dtype,
             n_jobs=materialize_n_jobs, progress_bar=True, overwrite=True,
         )
 

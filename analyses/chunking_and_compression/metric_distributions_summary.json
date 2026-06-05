@@ -1,0 +1,126 @@
+{
+  "n_units": 781,
+  "metrics": {
+    "snr": {
+      "direction": "hi",
+      "percentiles": {
+        "5": 6.9441,
+        "25": 8.0102,
+        "50": 9.6547,
+        "75": 12.9324,
+        "95": 21.8609
+      },
+      "n_nan": 0,
+      "pass_per_tier": {
+        "permissive": 781,
+        "moderate": 781,
+        "conservative": 781
+      }
+    },
+    "isi_violations_ratio": {
+      "direction": "lo",
+      "percentiles": {
+        "5": 0.0,
+        "25": 0.0494,
+        "50": 1.2905,
+        "75": 5.7085,
+        "95": 23.7365
+      },
+      "n_nan": 0,
+      "pass_per_tier": {
+        "permissive": 290,
+        "moderate": 254,
+        "conservative": 209
+      }
+    },
+    "rp_contamination": {
+      "direction": "lo",
+      "percentiles": {
+        "5": 0.0,
+        "25": 0.0,
+        "50": 0.2272,
+        "75": 1.0,
+        "95": 1.0
+      },
+      "n_nan": 0,
+      "pass_per_tier": {
+        "permissive": 439,
+        "moderate": 405,
+        "conservative": 352
+      }
+    },
+    "amplitude_cutoff": {
+      "direction": "lo",
+      "percentiles": {
+        "5": 0.0,
+        "25": 0.0,
+        "50": 0.0,
+        "75": 0.0001,
+        "95": 0.0033
+      },
+      "n_nan": 10,
+      "pass_per_tier": {
+        "permissive": 771,
+        "moderate": 771,
+        "conservative": 771
+      }
+    },
+    "presence_ratio": {
+      "direction": "hi",
+      "percentiles": {
+        "5": 0.0207,
+        "25": 0.0207,
+        "50": 0.0415,
+        "75": 0.1244,
+        "95": 0.4767
+      },
+      "n_nan": 0,
+      "pass_per_tier": {
+        "permissive": 12,
+        "moderate": 11,
+        "conservative": 11
+      }
+    },
+    "firing_rate": {
+      "direction": "hi",
+      "percentiles": {
+        "5": 0.0065,
+        "25": 0.0186,
+        "50": 0.0592,
+        "75": 0.2573,
+        "95": 2.8381
+      },
+      "n_nan": 0,
+      "pass_per_tier": {
+        "permissive": 220,
+        "moderate": 139,
+        "conservative": 139
+      }
+    },
+    "num_spikes": {
+      "direction": "hi",
+      "percentiles": {
+        "5": 1135.0,
+        "25": 3238.0,
+        "50": 10283.0,
+        "75": 44723.0,
+        "95": 493357.0
+      },
+      "n_nan": 0,
+      "pass_per_tier": {}
+    }
+  },
+  "combined_good_units_per_tier": {
+    "permissive": 11,
+    "moderate": 9,
+    "conservative": 6
+  },
+  "gated_metrics": [
+    "snr",
+    "isi_violations_ratio",
+    "rp_contamination",
+    "amplitude_cutoff",
+    "presence_ratio",
+    "firing_rate"
+  ]
+}
