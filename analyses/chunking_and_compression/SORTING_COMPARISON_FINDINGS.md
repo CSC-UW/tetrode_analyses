@@ -151,6 +151,154 @@ moderate 61 / conservative 30** (of 781). Each perturbed sort was matched agains
    match. Whether ~0.88 clears the production bar is the user's call; if not, lossless
    is the safer choice for roughly the same size.
 
+## Block-duration sensitivity (`21_sort_blocksize_and_compare.py`, `22_sort_longblocks.py`)
+Lossless blosc re-sorted at `scheme3_block_duration_sec` from 900 s to 21600 s,
+everything else fixed (global CMR, seed 42, deterministic PCA). Shared float32
+materialize (block duration only affects ms5's sorting stage). Determinism ceiling
+is 1.0, so any disagreement vs the 3600 s reference (`blosc-A`) is purely the
+block-duration parameter.
+
+**Unit counts drop monotonically as blocks lengthen** (fewer blocks → fewer
+unmerged per-block fragments); **pure sort time is roughly flat** (~100–125 min —
+block duration mostly redistributes the same total detect/classify work):
+
+| block | blocks over 48 h | units | pure sort time | training window |
+|---|---|---|---|---|
+| 900 s | 193 | 2462 | ~125 min | 300 s (default) |
+| 1800 s | 97 | 1363 | ~112 min | 300 s (default) |
+| 3600 s | 48 | 781 | ~106 min | 300 s (default) |
+| 7200 s | 24 | 457 | 115.6 min | 300 s (default) |
+| 14400 s | 12 | 307 | 102.8 min | 300 s (default) |
+| 21600 s | 8 | 238 | 106.5 min | 300 s (default) |
+| 43200 s (12 h) | 4 | 232 | 93.6 min | **3600 s (1 h)** |
+
+238 units at 6 h ≈ ~15/tetrode — finally in the plausible isolatable-unit range for
+16 tetrodes, i.e. long blocks sharply reduce the over-splitting. (`22_` reports
+time/units only; `21_` adds the agreement-vs-3600 s comparison below. Long-block
+sortings: `blosc-{7200,14400,21600}s/`; `sorting_longblocks_summary.json`.)
+
+**The yield-vs-block curve flattens at multi-hour blocks** (`24_sort_12h_blocks_1h_train.py`):
+doubling 6 h → 12 h barely moved the count (238 → 232), versus the steep drops at
+short blocks (900 → 1800 → 3600 s ≈ halving each step). By multi-hour blocks the
+per-block sort already captures the dominant well-isolated units; the marginal
+candidates are merged across the long stationarity window. Caveat: the 12 h run used
+a **1 h training window** while the rest of the series used the 300 s default, so
+232 vs 238 is not a controlled training comparison — but it confirms 12 h blocks land
+in the same ~230-unit regime, and widening training 300 s → 1 h did **not** materially
+change yield (consistent with training duration being second-order to block duration;
+see the footprint note below). Sorting: `blosc-43200s-train3600s/`;
+`sorting_12hblock_train1h_summary.json`.
+
+*agreement vs 3600 s (mean agreement among matched / fraction reproduced):*
+| reference set | n | 1800 s | 900 s |
+|---|---|---|---|
+| all units (raw) | 781 | 0.70 / 0.44 | 0.69 / 0.36 |
+| permissive | 104 | 0.76 / 0.79 | 0.76 / 0.73 |
+| moderate | 61 | 0.78 / 0.87 | 0.77 / 0.84 |
+| conservative | 30 | 0.78 / 0.87 | 0.80 / 0.80 |
+
+**Interpretation (NOT user-confirmed science):** the block duration is a
+**first-order knob**, and changing it perturbs the sort *more than near-lossless
+compression does*. Placing the curated-moderate mean-agreement numbers on one scale
+(same reference, same metric):
+
+| change vs 3600 s lossless | curated mean agreement (matched) |
+|---|---|
+| none (re-run, determinism ceiling) | 1.00 |
+| bps=6.0 (near-lossless compression) | 0.87 |
+| int16 quantization | 0.85 |
+| **block 1800 s / 900 s** | **0.78 / 0.77** |
+| bps=2.25 (aggressive lossy) | 0.72 |
+
+So halving (or quartering) the block duration moves the good-unit sort by *more*
+than near-lossless compression and about as much as aggressive bps=2.25 lossy
+compression. Most good units are still found (match fraction 0.73–0.87), but their
+spike trains differ ~0.22. 1800 s and 900 s are similar to each other (~0.77) — the
+shift happens on leaving 3600 s, not in the further halving (though unit count keeps
+climbing). Takeaway: an internal sorter parameter introduces variability comparable
+to the compression choice under study — reinforcing that the raw scheme-3 sort is
+sensitive to many choices, and that production stability requires fixing parameters
+*and* curating.
+
+## training_duration footprint & the ms5 int32 ceiling (`23_bench_training_duration.py`)
+Measured runtime + peak memory of scheme-2 `training_duration_sec` on tononi-2
+(1.5 TiB RAM, 112c/224t), sorting a genuine T-second crop of all 16 tetrodes at
+production `n_jobs=5`. Memory = **peak USS** (private working set summed over the
+process tree; USS is the right metric because RSS additionally counts the mmap'd
+binary's reclaimable file cache). 4-ch tetrodes (denser probes scale up).
+
+Methodology note (root-caused via staged synthetic reproductions, `diag_framesize*.py`):
+an earlier attempt that frame-sliced the *full 48 h* materialized binary (rather than
+materializing a genuine T-second crop) showed ~500 GB for a nominal 300 s of sorting.
+Cause: in the **`run_sorter_by_property` + `BinaryFolderRecording` (the class
+`recording.save(format="binary")`/`si.load` produces) + `frame_slice`** path, each
+worker's memory scales with the **full parent recording**, not the frame-sliced
+length — ~full-per-tetrode (4 ch × 48 h × f32 ≈ 83 GB) × `n_jobs`(5) ≈ 415 GB, plus a
+secondary ~42 GB from the full-length float64 time vector that `frame_slice` carries
+at parent length. `frame_slice`'s *length* is honored (the sort correctly processes
+300 s and yields ~300 s of units) but its *memory* is full-parent-scaled. Verified:
+the single-file `BinaryRecordingExtractor` path does **not** exhibit this (~1.8 GB
+even at the exact 48 h frame count, >2³²); the file-backed `BinaryFolderRecording`
+path does (~full-data × workers, time-vector-independent — persists under
+`reset_times`). So it's an apparent **SpikeInterface inefficiency** (worker memory not
+bounded by the frame slice on this path), worth a minimal-repro issue; the exact
+internal trigger was not isolated to a line (`is_binary_compatible` is identical for
+both classes, so that's not it). Materializing a genuine per-T crop binary avoids it
+(full == crop) and gives the clean, monotonic numbers below — the reliable measurement.
+
+| training_duration | sort time | peak USS | USS/tetrode | units |
+|---|---|---|---|---|
+| 300 s | 0.2 min | 1.8 GB | 0.36 GB | 86 |
+| 600 s | 0.3 min | 3.0 GB | 0.59 GB | 99 |
+| 1200 s | 0.7 min | 4.9 GB | 0.98 GB | 107 |
+| 2400 s | 1.2 min | 8.5 GB | 1.71 GB | 110 |
+| 4800 s (1.3 h) | 2.7 min | 17.0 GB | 3.39 GB | 113 |
+| 9600 s (2.7 h) | 4.9 min | 29.8 GB | 5.96 GB | 109 |
+| 19200 s (5.3 h) | 10.4 min | 62.8 GB | 12.57 GB | 109 |
+| 38400 s (10.7 h) | 21.3 min | 122.1 GB | 24.43 GB | 115 |
+| 76800 s (21.3 h) | — | — | — | **CRASH** |
+
+Peak USS and sort time both scale **~linearly** with training_duration; unit count
+plateaus ~110 (the 16 tetrodes' isolatable-unit count, found from any ≥~1 h window).
+
+**The ceiling is a software limit, not the hardware.** At 76800 s the run crashed with
+`OverflowError: ... out of bounds for int32` in `mountainsort5/core/detect_spikes.py:78`
+(`times = np.array(times, dtype=np.int32)`): ms5 indexes spike sample-times as **int32**,
+which overflows past **2³¹ = 71,583 s ≈ 19.9 h**. So the largest workable
+`training_duration` (or scheme-3 `block_duration`) is **~19.9 h**, where the
+*extrapolated* footprint is only ~230 GB — far below the 1.5 TiB RAM and the 500 GB
+courteous budget. Memory never binds first: even the full 48 h as one training window
+would be ~550 GB USS (fits 1.5 TiB) **if the int32 were widened to int64**. Recommended
+fix: int64 sample indices in `detect_spikes` (and audit other int32 sample-index sites)
+to lift the cap to the full recording. Normal runs (blocks ≤ 6 h) never hit it.
+
+### Full-48 h production footprint at 12 h blocks / 1 h training (`24_sort_12h_blocks_1h_train.py`)
+The crop sweep above isolates the *training* cost; this is the real end-to-end
+footprint of an actual 48 h scheme-3 sort. Full 48 h, `block_duration=43200 s` (12 h,
+4 blocks), `training_duration=3600 s` (1 h, uniform), global CMR, seed 42, `n_jobs=5`.
+Both 12 h blocks and the 1 h window are under the 19.9 h int32 ceiling, and phase-2
+classification is chunked (~833 s/chunk at 4 ch) so no single `detect_spikes` call
+approaches 2³¹.
+
+| phase | wall time | peak USS | peak RSS (incl. file cache) | peak `/nvme` written |
+|---|---|---|---|---|
+| materialize (bandpass + global CMR → f32, `n_jobs=96`) | 32.9 min | 83.6 GB | 83.1 GB | 1377 GB |
+| sort (16 tetrodes, `n_jobs=5`) | 93.6 min | **90.6 GB** | 267.1 GB | +626 GB |
+| **total** | **~126 min (2.1 h)** | ~90 GB | — | ~2.0 TB peak |
+
+- **RAM is not the constraint:** peak private working set ~90 GB (~18 GB/tetrode × 5
+  workers) — ~6 % of the 1.5 TiB host. RSS 267 GB is mostly reclaimable mmap'd pages
+  of the materialized binary (file cache), not anonymous pressure.
+- **Disk is the cost:** the 64-ch f32 materialized cache is ~1.38 TB; the sort adds
+  ~626 GB of per-tetrode 4-ch caches ms5 builds on the fly → ~2.0 TB peak on `/nvme`.
+- **CPU not reported — sampler metric is broken.** The `TreeSampler` logged 1.4 cores,
+  implausible for a 5-way sort: it re-creates child `Process` objects every loop, so
+  `cpu_percent()` returns 0 on each first call and only the parent accumulates. Memory/
+  disk/time are point-in-time snapshots and unaffected. By design the sort is ~5 busy
+  cores (`n_jobs=5`; per-tetrode ms5 work is largely single-threaded). The same bug is
+  present in `23_`'s `peak_cpu_cores` column (memory/time there are valid). Fix before
+  citing any CPU number: keep a persistent `{pid: Process}` map across loop iterations.
+
 ## Prior run (contrast): seeded, global CMR (`whitening_seed=42`, no PCA fix)
 Scripts: `12_sort_seeded_and_compare.py` (both stores; produced blosc),
 `13_sort_wavpack_and_compare.py` (wavpack-only resume after a shared-disk abort,
@@ -312,6 +460,15 @@ materialize. Solver-probe data: `pca_solver_probe_600s.csv` (rows 1–64 = 600 s
   `sortings_seed42_pcafix/comparison_curated_summary.json` (curated, well-isolated)
 - curation: `metric_distributions_blosc-A.{png,csv}`, `metric_distributions_summary.json`
   (`19_metric_distributions.py`); curated agreement `20_curated_agreement.py`
+- block-duration: `sortings_seed42_pcafix/{blosc-1800s,blosc-900s}/` + `comparison_blocksize_summary.json`,
+  `sorting_blocksize_summary.json` (`21_sort_blocksize_and_compare.py`);
+  long blocks `sortings_seed42_pcafix/blosc-{7200,14400,21600}s/` + `sorting_longblocks_summary.json`
+  (`22_sort_longblocks.py`)
+- 12 h block / 1 h training (full-48 h production footprint):
+  `sortings_seed42_pcafix/blosc-43200s-train3600s/` + `sorting_12hblock_train1h_summary.json`
+  (`24_sort_12h_blocks_1h_train.py`)
+- training_duration footprint sweep: `sortings_seed42_pcafix/training_duration_bench.json`
+  (`23_bench_training_duration.py`)
 - `slice_table.csv`, `conversion_results.json`
 - (`sortings_seed42/` — seeded-only run — deleted 2026-06-03; `sortings/` — original
   unseeded run — deleted 2026-06-01)
