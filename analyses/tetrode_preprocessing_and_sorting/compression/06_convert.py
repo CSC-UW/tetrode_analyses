@@ -9,7 +9,7 @@ ProbeGroup attached, the real Open Ephys sync-clock time vector is preserved
 Emit BOTH stores (lossless + lossy) to compare sorting outcomes:
 
     cd gfys_workspace
-    BASE=../tetrode_analyses/analyses/chunking_and_compression/06_convert.py
+    BASE=../tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/compression/06_convert.py
     ACQ=/Volumes/neuropixel_archive/tetrode_data/2026-05-27_09-07-52
     OUT=/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52
     uv run python $BASE --acq $ACQ --out $OUT/2026-05-27.wavpack-bps2.25.zarr \

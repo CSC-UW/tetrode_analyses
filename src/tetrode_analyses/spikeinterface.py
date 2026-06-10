@@ -9,7 +9,8 @@ properties, and annotates provenance (a slice table + each experiment's settings
 XML), analogous to `ecephys.wne.sglx.spikeinterface.get_recording`.
 
 `convert_recording` compresses such a recording to a tetrode-aligned Zarr store
-(see the chunking_and_compression analysis for the benchmark behind the scheme).
+(see analyses/tetrode_preprocessing_and_sorting/compression for the benchmark
+behind the scheme).
 """
 
 from __future__ import annotations

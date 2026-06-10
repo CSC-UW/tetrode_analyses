@@ -6,7 +6,7 @@ microvolts, with the session-relative time vector carried through. Saves a
 before/after trace + PSD plot for visual confirmation of the anti-alias rolloff.
 
     cd gfys_workspace
-    uv run python ../tetrode_analyses/analyses/chunking_and_compression/13_make_subsampled_lfp.py
+    uv run python ../tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/lfp/13_make_subsampled_lfp.py
 """
 import pathlib
 import matplotlib
@@ -20,9 +20,7 @@ from tetrode_analyses.lfp import make_subsampled_lfp, open_lfps_dataarray  # noq
 ROOT = pathlib.Path("/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52")
 LFP = ROOT / "2026-05-27_09-07-52.lfp.zarr"
 SUB = ROOT / "2026-05-27_09-07-52.lfp.125hz.zarr"
-OUTDIR = pathlib.Path(
-    "/Users/gfindlay@ad.wisc.edu/projects/ece/tetrode_analyses/analyses/chunking_and_compression"
-)
+OUTDIR = pathlib.Path(__file__).resolve().parent
 RESAMPLE_RATE = 125
 
 if not SUB.exists():

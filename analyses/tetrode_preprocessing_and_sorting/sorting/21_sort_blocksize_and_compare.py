@@ -25,7 +25,7 @@ from tetrode_analyses.sorting import sort_store
 
 ROOT = pathlib.Path("/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52")
 SR = ROOT / "sortings_seed42_pcafix"
-HERE = pathlib.Path("/Users/gfindlay@ad.wisc.edu/projects/ece/tetrode_analyses/analyses/chunking_and_compression")
+HERE = pathlib.Path(__file__).resolve().parent
 BLOSC = ROOT / "2026-05-27_09-07-52.blosc-zstd.zarr"
 REF_AGG = SR / "blosc-A" / "aggregated"     # 3600 s reference
 SHARED_CACHE = SR / "_blocksize_cmr_cache"

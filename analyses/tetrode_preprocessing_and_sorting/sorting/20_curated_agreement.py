@@ -20,7 +20,7 @@ import spikeinterface.comparison as sc
 
 ROOT = pathlib.Path("/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52")
 SR = ROOT / "sortings_seed42_pcafix"
-HERE = pathlib.Path("/Users/gfindlay@ad.wisc.edu/projects/ece/tetrode_analyses/analyses/chunking_and_compression")
+HERE = pathlib.Path(__file__).resolve().parent
 METRICS_CSV = HERE / "metric_distributions_blosc-A.csv"
 
 # confirmed "well-isolated" definition (ISI + RP + firing-rate; three tiers)

@@ -14,8 +14,8 @@ the session-relative time vector) is registered to the sorting, and
 LFP, and spikes share one clock.
 
     cd gfys_workspace
-    uv run python ../tetrode_analyses/analyses/chunking_and_compression/14_launch_loupe.py
-    uv run python ../tetrode_analyses/analyses/chunking_and_compression/14_launch_loupe.py --sorting wavpack-bps2.25
+    uv run python ../tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/lfp/14_launch_loupe.py
+    uv run python ../tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/lfp/14_launch_loupe.py --sorting wavpack-bps2.25
 """
 import argparse
 import pathlib

@@ -227,7 +227,9 @@ production `n_jobs=5`. Memory = **peak USS** (private working set summed over th
 process tree; USS is the right metric because RSS additionally counts the mmap'd
 binary's reclaimable file cache). 4-ch tetrodes (denser probes scale up).
 
-Methodology note (root-caused via staged synthetic reproductions, `diag_framesize*.py`):
+Methodology note (root-caused via staged synthetic reproductions, `diag_framesize*.py`,
+now in the sibling `../si_frame_slice_memory/`; full writeup in
+`../si_frame_slice_memory/frame_slice_memory_FINDINGS.md`):
 an earlier attempt that frame-sliced the *full 48 h* materialized binary (rather than
 materializing a genuine T-second crop) showed ~500 GB for a nominal 300 s of sorting.
 Cause: in the **`run_sorter_by_property` + `BinaryFolderRecording` (the class

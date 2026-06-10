@@ -5,7 +5,7 @@ tetrode (scheme 3, ms5 per-group whitening) in parallel via
 run_sorter_by_property -> aggregate. Saves the aggregated sorting + a summary.
 
     cd gfys_workspace
-    uv run python ../tetrode_analyses/analyses/chunking_and_compression/10_sort_ms5.py
+    uv run python ../tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/sorting/10_sort_ms5.py
 """
 import json
 import time

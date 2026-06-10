@@ -17,7 +17,7 @@ from tetrode_analyses.lfp import make_lfp, open_lfps_dataarray  # noqa: E402
 ROOT = pathlib.Path("/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52")
 SRC = ROOT / "2026-05-27_09-07-52.blosc-zstd.zarr"
 LFP = ROOT / "2026-05-27_09-07-52.lfp.zarr"
-OUTDIR = pathlib.Path("/Users/gfindlay@ad.wisc.edu/projects/ece/tetrode_analyses/analyses/chunking_and_compression")
+OUTDIR = pathlib.Path(__file__).resolve().parent
 FS = 30000
 
 if not LFP.exists():

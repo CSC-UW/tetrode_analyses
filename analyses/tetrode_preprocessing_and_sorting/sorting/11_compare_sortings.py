@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = pathlib.Path("/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52")
 SORT_ROOT = ROOT / "sortings"
-OUTDIR = pathlib.Path("/Users/gfindlay@ad.wisc.edu/projects/ece/tetrode_analyses/analyses/chunking_and_compression")
+OUTDIR = pathlib.Path(__file__).resolve().parent
 
 s_blosc = si.load(str(SORT_ROOT / "blosc-zstd" / "aggregated"))
 s_wp = si.load(str(SORT_ROOT / "wavpack-bps2.25" / "aggregated"))

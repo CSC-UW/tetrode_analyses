@@ -24,7 +24,7 @@ from tetrode_analyses.sorting import preprocess_for_sorting
 ROOT = pathlib.Path("/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52")
 BLOSC = ROOT / "2026-05-27_09-07-52.blosc-zstd.zarr"
 REF_AGG = ROOT / "sortings_seed42_pcafix" / "blosc-A" / "aggregated"
-OUTDIR = pathlib.Path("/Users/gfindlay@ad.wisc.edu/projects/ece/tetrode_analyses/analyses/chunking_and_compression")
+OUTDIR = pathlib.Path(__file__).resolve().parent
 CACHE = ROOT / "sortings_seed42_pcafix" / "_metrics_cmr_cache"
 DISK_FLOOR_GB = 1800
 

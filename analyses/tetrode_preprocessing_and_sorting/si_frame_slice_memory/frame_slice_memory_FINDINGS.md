@@ -96,11 +96,23 @@ time_vector = np.load(time_file, mmap_mode="r")   # was: np.load(time_file)
 ```
 `core/time_series.py` `TimeSeries.shift_times` (read-only memmap safety):
 ```python
-rs.time_vector = rs.time_vector + shift           # was: rs.time_vector += shift
+if rs.time_vector.flags.writeable:
+    rs.time_vector += shift                        # in-place: no extra copy
+else:
+    rs.time_vector = rs.time_vector + shift        # memmap is read-only -> out-of-place
 ```
 `np.asarray(memmap)` shares the buffer with no copy and preserves read-only, so
 `TimeSeriesSegment.get_times()` stays lazy. Verified no other in-place writes to
 `time_vector` in core.
+
+Note on `shift_times` cost (measured, 1.6 GB vector): an unconditional
+out-of-place add costs a transient extra full-length copy for an in-memory
+writeable vector (peak +1.58 GB, settles back to 1x); the branch above avoids
+that by shifting in place when possible, so the out-of-place copy is paid only
+for a read-only memmap — where shifting must materialize an in-memory array
+anyway (in-place is impossible). `shift_times` is a rare, explicit, top-level op
+(not in the sorting hot path, not per-worker), so either form is acceptable; the
+branch keeps the common case at strict 1x.
 
 ### Tests
 `uv run --no-sync pytest` on `test_time_handling.py`, `test_baserecording.py`,
@@ -136,6 +148,6 @@ never the cause (`get_traces` returns mmap views). Minimal repro:
 core) + make `shift_times` out-of-place.
 
 ## Scripts
-`tetrode_analyses/analyses/chunking_and_compression/`:
+`tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/si_frame_slice_memory/`:
 `diag_framesize5_instrumented.py` (localization), `diag_framesize6_joblib.py`
 (before/after harness), `si_timevector_memory_minimal_repro.py` (filing repro).
