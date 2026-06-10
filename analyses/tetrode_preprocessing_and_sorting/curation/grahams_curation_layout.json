@@ -1,0 +1,10 @@
+{
+    "zone1": ["unitlist", "spikelist", "curation", "merge", "probe"],
+    "zone2": ["spikerate"],
+    "zone3": ["trace", "tracemap", "spikeamplitude", "amplitudescalings"],
+    "zone4": [],
+    "zone5": ["ndscatter", "similarity"],
+    "zone6": ["metrics"],
+    "zone7": ["correlogram", "isi", "maintemplate", "mainsettings"],
+    "zone8": ["waveform", "waveformheatmap"]
+}
