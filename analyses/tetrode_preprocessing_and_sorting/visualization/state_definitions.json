@@ -1,0 +1,33 @@
+{
+  "_comment": "loupe interval-scoring state definitions (keymap + label_colors). Sleep-scoring states/hotkeys/colors copied from cnpix/sleepscore/launch_scoring.py. keymap is the inverse {state: [hotkeys]} form loupe accepts; colors are hex. Bundled by build_bundle.py and passed to lp.view(state_definitions=...) by launch_loupe.py.",
+  "keymap": {
+    "Wake": ["w", "0"],
+    "N1": ["1"],
+    "N2": ["2"],
+    "NREM": ["n", "3"],
+    "IS": ["i", "4"],
+    "REM": ["r", "5"],
+    "MA": ["m", "`"],
+    "Arousal": ["a", "9"],
+    "Trans": ["t"],
+    "Artifact": ["x"],
+    "None": ["v"],
+    "QWK": ["q"],
+    "AWK": ["e"]
+  },
+  "label_colors": {
+    "Wake": "#98fb98",
+    "N1": "#d8bfd8",
+    "N2": "#dda0dd",
+    "NREM": "#da70d6",
+    "IS": "#deb887",
+    "REM": "#ffe4c4",
+    "MA": "#afeeee",
+    "Arousal": "#90ee90",
+    "Trans": "#dcdcdc",
+    "Artifact": "#dc143c",
+    "None": "#ffffff",
+    "QWK": "#228b22",
+    "AWK": "#32cd32"
+  }
+}

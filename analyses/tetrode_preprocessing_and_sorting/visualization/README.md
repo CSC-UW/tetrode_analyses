@@ -50,8 +50,15 @@ viz_bundle/
   synthetic_emg_methods.zarr   # copied verbatim (already a plain xarray zarr)
   lfp.125hz.zarr               # 16 tetrode-lead sub-LFP, re-exported as plain xarray
   spikes.parquet               # one row per spike: time[s, float64], unit_id, tetrode
+  state_definitions.json       # loupe scoring keymap + label colors (from sleepscore/launch_scoring)
   manifest.json                # session/sorting provenance + per-tetrode separator boundaries
 ```
+
+`state_definitions.json` (versioned next to the scripts, copied verbatim into the
+bundle) carries the sleep-scoring keymap + per-state colors from
+`cnpix/sleepscore/launch_scoring.py`; `launch_loupe.py` passes it to
+`lp.view(state_definitions=...)`, which enables loupe's interval scoring (without
+it, loupe raises `LoupeConfigError: No state definitions found`).
 
 ## Why a server-side prep step
 

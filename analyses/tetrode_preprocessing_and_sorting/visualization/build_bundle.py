@@ -16,6 +16,7 @@ Bundle contents (default ``<session>/viz_bundle/``)::
     synthetic_emg_methods.zarr   # copied as-is (already a plain xarray zarr)
     lfp.125hz.zarr               # re-exported as a PLAIN xarray zarr (SI-free read)
     spikes.parquet               # one row per spike: time[s], unit_id, tetrode
+    state_definitions.json       # loupe scoring keymap + label colors
     manifest.json                # provenance + per-tetrode separator boundaries
 
 Why a prep step (rather than downloading the raw artifacts)?
@@ -47,6 +48,10 @@ from tetrode_analyses.viz import _tetrode_sort_key
 
 SUBJECT, EXPERIMENT = "TTM-001", "TTM-NOD"
 EMG_FILENAME = "synthetic_emg_methods.zarr"
+# loupe interval-scoring state definitions (keymap + label_colors), seeded from
+# cnpix/sleepscore/launch_scoring.py. Lives next to this script and is copied
+# verbatim into the bundle so launch_loupe.py can pass it to lp.view().
+STATE_DEFINITIONS_FILENAME = "state_definitions.json"
 DEFAULT_SORTINGS_SUBDIR = "sortings_seed42_pcafix"
 DEFAULT_SORTING = "blosc-43200s-train3600s"  # 48 h, 12 h blocks, 1 h training window
 # Source store whose session-relative time vector maps spike frames -> seconds.
@@ -168,11 +173,11 @@ def main() -> None:
     print(f"Bundle -> {bundle}")
 
     # --- EMG: copy the plain xarray zarr verbatim ---
-    print("[1/4] EMG")
+    print("[1/5] EMG")
     _copytree(emg_src, bundle / EMG_FILENAME, overwrite=args.overwrite)
 
     # --- 125 Hz sub-LFP: ensure the SI store exists, then re-export plain xarray ---
-    print("[2/4] 125 Hz LFP")
+    print("[2/5] 125 Hz LFP")
     if not sub_lfp.exists():
         print(f"  building 125 Hz sub-LFP (missing): {sub_lfp}")
         make_subsampled_lfp(lfp_625, sub_lfp, resample_rate=125, n_jobs=16)
@@ -189,19 +194,30 @@ def main() -> None:
     tetrodes_lfp = [str(t) for t in np.asarray(da["tetrode"].values)]
 
     # --- Spikes: frames -> session seconds via SI native time API, to parquet ---
-    print("[3/4] spikes")
-    agg = si.load(str(aggregated_dir))
-    spikes = build_spike_dataframe(agg, si.read_zarr(str(source_store)))
+    print("[3/5] spikes")
     spikes_path = bundle / "spikes.parquet"
-    spikes.write_parquet(spikes_path, compression="zstd")
+    if spikes_path.exists() and not args.overwrite:
+        print(f"  exists, skipping: {spikes_path}")
+        spikes = pl.read_parquet(spikes_path)
+    else:
+        agg = si.load(str(aggregated_dir))
+        spikes = build_spike_dataframe(agg, si.read_zarr(str(source_store)))
+        spikes.write_parquet(spikes_path, compression="zstd")
     tetrode_order, separator_boundaries = tetrode_separator_boundaries(spikes)
+    n_units = int(spikes["unit_id"].n_unique())
     print(
-        f"  {spikes.height} spikes, {agg.get_num_units()} units, "
+        f"  {spikes.height} spikes, {n_units} units, "
         f"{len(tetrode_order)} tetrodes -> {spikes_path}"
     )
 
+    # --- loupe scoring state definitions: copy the asset next to this script ---
+    print("[4/5] state definitions")
+    state_src = pathlib.Path(__file__).resolve().parent / STATE_DEFINITIONS_FILENAME
+    shutil.copy(state_src, bundle / STATE_DEFINITIONS_FILENAME)
+    print(f"  copy {state_src} -> {bundle / STATE_DEFINITIONS_FILENAME}")
+
     # --- Manifest ---
-    print("[4/4] manifest")
+    print("[5/5] manifest")
     manifest = {
         "subject": SUBJECT,
         "experiment": EXPERIMENT,
@@ -218,12 +234,13 @@ def main() -> None:
         },
         "spikes": {
             "n_spikes": int(spikes.height),
-            "n_units": int(agg.get_num_units()),
+            "n_units": n_units,
             "tetrode_order": tetrode_order,
             # unit_id values below which to draw a per-tetrode separator line:
             "separator_boundaries": separator_boundaries,
         },
         "emg_methods": ["per_window", "global"],
+        "state_definitions": STATE_DEFINITIONS_FILENAME,
     }
     (bundle / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))

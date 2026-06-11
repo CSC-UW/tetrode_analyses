@@ -18,6 +18,9 @@ Panes, top to bottom:
   3. The MountainSort5 spike raster in a single pane, colored by tetrode, with
      thin horizontal separators between tetrodes (loupe's ``horizontal_separators``).
 
+Interval scoring is enabled via the bundle's ``state_definitions.json`` (the
+sleep-scoring keymap + label colors from ``cnpix/sleepscore/launch_scoring``).
+
 EMG, LFP, and spikes already share one session-relative clock — the LFP ``time``
 coordinate and the parquet spike ``time`` were both written in session seconds by
 ``build_bundle.py``.
@@ -39,6 +42,7 @@ from tetrode_analyses.viz import _tetrode_sort_key, tetrode_color_map
 EMG_FILENAME = "synthetic_emg_methods.zarr"
 LFP_FILENAME = "lfp.125hz.zarr"
 SPIKES_FILENAME = "spikes.parquet"
+STATE_DEFINITIONS_FILENAME = "state_definitions.json"  # loupe scoring keymap + colors
 EMG_METHODS = ("per_window", "global")
 EMG_COLORS = {"per_window": "#1f77b4", "global": "#ff7f0e"}
 SEPARATOR_PARAMS = {"gap": 0.6, "color": "#888888", "width": 1.0}
@@ -107,6 +111,14 @@ def main() -> None:
     da = da.assign_coords(tt_num=("channel", tt_num))  # stack traces in TT order
     palette = tetrode_color_map(tetrodes)
 
+    # --- Scoring state definitions (keymap + label colors), enables interval labeling ---
+    state_path = data_dir / STATE_DEFINITIONS_FILENAME
+    if not state_path.exists():
+        raise FileNotFoundError(
+            f"{STATE_DEFINITIONS_FILENAME} not found in {data_dir}. Rebuild the "
+            "bundle on tononi-2 (build_bundle.py) and re-download it."
+        )
+
     # --- Spikes: single-pane raster, tetrode-colored, separators between tetrodes ---
     spikes = pl.read_parquet(data_dir / SPIKES_FILENAME)
     tt_order, separators = tetrode_separators(spikes)
@@ -165,6 +177,7 @@ def main() -> None:
             raster,
         ],
         window_len=args.window_len,
+        state_definitions=str(state_path),
     )
 
 
