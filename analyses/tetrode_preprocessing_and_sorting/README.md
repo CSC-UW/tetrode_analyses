@@ -29,6 +29,7 @@ MountainSort5, and characterize what perturbs the sort.
 | [`sorting/`](sorting/README.md) | MountainSort5 sort by tetrode group; lossless-vs-lossy agreement, determinism, block/training-duration sweeps, the ms5 int32 ceiling, parameter comparison | `sorting/SORTING_COMPARISON_FINDINGS.md`, `sorting/ms5_parameter_comparison.md` |
 | [`lfp/`](lfp/README.md) | 625 Hz + 125 Hz LFP generation | `lfp/README.md` |
 | [`visualization/`](visualization/README.md) | Build a portable "viz bundle" on the server, download it to a local drive, and review EMG + LFP + sorting in a local **loupe** viewer | `visualization/README.md` |
+| [`curation/`](curation/README.md) | Curate the sort in **spikeinterface-gui**, on tononi-2 or locally (manifest → rclone → launch); `--no-traces` for analyzer-only | `curation/README.md` |
 | [`si_frame_slice_memory/`](si_frame_slice_memory/) | Upstream SpikeInterface bug: `frame_slice` / `BinaryFolderRecording` worker memory scales with the full parent recording, not the slice (root-caused while measuring `training_duration` footprint) | `si_frame_slice_memory/frame_slice_memory_FINDINGS.md` |
 
 ## Pipeline order
@@ -42,6 +43,9 @@ MountainSort5, and characterize what perturbs the sort.
    sorter parameters (determinism, block/training duration) and curate.
 4. `visualization/` — `build_bundle` (server) → `download_bundle` (local) →
    `launch_loupe` (local): review EMG + LFP + the 48 h sorting in loupe.
+5. `curation/` — curate in spikeinterface-gui: `launch_curation` (server) or the
+   local trio `build_curation_manifest` → `download_curation_bundle` →
+   `launch_curation_local`.
 
 Numeric script prefixes (`01`–`24`) are the original chronological order across
 all threads; they are preserved within each subfolder, so the sequence now reads
