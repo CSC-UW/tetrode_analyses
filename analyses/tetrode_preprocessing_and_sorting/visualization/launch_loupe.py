@@ -35,9 +35,9 @@ import re
 import numpy as np
 import polars as pl
 import xarray as xr
+from tetrode_analyses.viz import _tetrode_sort_key, tetrode_color_map
 
 import loupe as lp
-from tetrode_analyses.viz import _tetrode_sort_key, tetrode_color_map
 
 EMG_FILENAME = "synthetic_emg_methods.zarr"
 LFP_FILENAME = "lfp.125hz.zarr"
@@ -73,9 +73,7 @@ def tetrode_separators(spikes: pl.DataFrame) -> tuple[list[str], list[int] | Non
         for tt in tetrodes
     }
     ordered = [spans[tt] for tt in tetrodes]
-    contiguous = all(
-        ordered[i][1] < ordered[i + 1][0] for i in range(len(ordered) - 1)
-    )
+    contiguous = all(ordered[i][1] < ordered[i + 1][0] for i in range(len(ordered) - 1))
     if not contiguous:
         return tetrodes, None
     boundaries = [spans[tt][1] for tt in tetrodes[:-1]]
@@ -164,6 +162,7 @@ def main() -> None:
                 hue="method",
                 palette=EMG_COLORS,
                 array_name="EMG",
+                add_bottom_spine=True,
             ),
             lp.TraceConfig(
                 da,
