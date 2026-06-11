@@ -47,4 +47,7 @@ A closely related upstream investigation (the SpikeInterface `frame_slice` /
 | `23_bench_training_duration.py` | scheme-2 `training_duration_sec` runtime + peak-memory footprint; surfaces the int32 ceiling |
 | `24_sort_12h_blocks_1h_train.py` | full-48 h production sort at 12 h blocks / 1 h training; end-to-end footprint |
 | `25_build_analyzer_12hblock_train1h.py` | build the Zarr `SortingAnalyzer` for the 12 h-block / 1 h-training sort (13 extensions; tetrode-group sparsity) → `blosc-43200s-train3600s/analyzer.zarr` |
+| `27_sort_48h_singleblock_scheme2.py` | full-48 h sort as a single scheme-2 block / 1 h training (large-block limit; counterpart to `24_`) + footprint → `blosc-scheme2-train3600s/` |
+| `28_build_analyzer_singleblock_scheme2.py` | build the Zarr `SortingAnalyzer` for the single-block scheme-2 sort (13 extensions; tetrode-group sparsity) → `blosc-scheme2-train3600s/analyzer.zarr` |
+| `29_compare_singleblock_vs_12hblock.py` | agreement of single-block scheme 2 vs the 12 h-block scheme-3 sort, raw + curated tiers → `comparison_singleblock_vs_12hblock_summary.json`, `agreement_singleblock_vs_12hblock.png` |
 | `probe_pca_solver.py` / `probe_pca_solver_np.py` | instrumented `(L, n_features, solver)` probes (tetrode + Neuropixels) for the PCA-nondeterminism analysis |

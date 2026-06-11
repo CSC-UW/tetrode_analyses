@@ -19,6 +19,7 @@ predictable; address stays "localhost" so a same-port tunnel is websocket-origin
 valid. Web-only options are not passed in desktop mode. The GUI blocks until you
 quit it.
 """
+
 import argparse
 import json
 import os
@@ -26,9 +27,12 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+# ANALYZER_PATH = Path(
+#    "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/"
+#    "sortings_seed42_pcafix/blosc-43200s-train3600s/analyzer.zarr"
+# )
 ANALYZER_PATH = Path(
-    "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/"
-    "sortings_seed42_pcafix/blosc-43200s-train3600s/analyzer.zarr"
+    "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/sortings_seed42_pcafix/blosc-scheme2-train3600s/analyzer.zarr"
 )
 DEFAULT_PORT = 8000
 
@@ -40,7 +44,11 @@ STYLES = {
         "layout_file": SCRIPT_DIR / "grahams_curation_layout.json",
         "settings_file": SCRIPT_DIR / "grahams_curation_settings.json",
         "displayed_unit_properties": [
-            "group", "snr", "firing_rate", "presence_ratio", "isi_violations_ratio",
+            "group",
+            "snr",
+            "firing_rate",
+            "presence_ratio",
+            "isi_violations_ratio",
         ],
     },
 }
@@ -65,16 +73,22 @@ def main():
         description="Launch the curation GUI for the 12 h-block sort analyzer."
     )
     parser.add_argument(
-        "--mode", choices=["web", "desktop"], default="web",
+        "--mode",
+        choices=["web", "desktop"],
+        default="web",
         help="'web' (Panel server, headless-friendly via SSH tunnel) or 'desktop' "
-             "(Qt; needs a display, e.g. ssh -X / VNC). Default: web.",
+        "(Qt; needs a display, e.g. ssh -X / VNC). Default: web.",
     )
     parser.add_argument(
-        "--port", type=int, default=int(os.environ.get("SIGUI_PORT", DEFAULT_PORT)),
+        "--port",
+        type=int,
+        default=int(os.environ.get("SIGUI_PORT", DEFAULT_PORT)),
         help=f"Port for web mode (default {DEFAULT_PORT} or $SIGUI_PORT).",
     )
     parser.add_argument(
-        "--style", choices=sorted(STYLES), default=None,
+        "--style",
+        choices=sorted(STYLES),
+        default=None,
         help="Named layout+settings preset (e.g. 'grahams_curation'). Default: GUI defaults.",
     )
     args = parser.parse_args()
@@ -87,14 +101,17 @@ def main():
         # Headless guard: never hand the URL to a terminal browser (w3m).
         os.environ.setdefault("BROWSER", "echo")
 
-    import spikeinterface as si
     import spikeinterface_gui as sg
+
+    import spikeinterface as si
 
     sorting_analyzer = si.load_sorting_analyzer(ANALYZER_PATH)
     skw = style_kwargs(args.style)
 
     if args.mode == "web":
-        print(f"\nServing curation GUI at  http://localhost:{args.port}/   (Ctrl-C to stop)")
+        print(
+            f"\nServing curation GUI at  http://localhost:{args.port}/   (Ctrl-C to stop)"
+        )
         print("From your laptop, open an SSH tunnel (use the SAME local/remote port):")
         print(f"    ssh -N -L {args.port}:localhost:{args.port} <you>@tononi-2")
         print(f"then browse to            http://localhost:{args.port}/\n", flush=True)
@@ -104,12 +121,16 @@ def main():
             curation=True,
             address="localhost",
             port=args.port,
-            panel_start_server_kwargs={"show": False},  # headless: do not auto-open a browser
+            panel_start_server_kwargs={
+                "show": False
+            },  # headless: do not auto-open a browser
             **skw,
         )
     else:
-        print("Launching desktop (Qt) curation GUI — requires a display (e.g. ssh -X / VNC).",
-              flush=True)
+        print(
+            "Launching desktop (Qt) curation GUI — requires a display (e.g. ssh -X / VNC).",
+            flush=True,
+        )
         sg.run_mainwindow(sorting_analyzer, mode="desktop", curation=True, **skw)
 
 
