@@ -27,7 +27,8 @@ MountainSort5, and characterize what perturbs the sort.
 |---|---|---|
 | [`compression/`](compression/README.md) | Chunking + compressor benchmarks → the production conversion script (`06_convert.py`); the chunking/compression decision (channel_chunk=4, WavPack bps=2.25 vs blosc-zstd) | `compression/README.md` |
 | [`sorting/`](sorting/README.md) | MountainSort5 sort by tetrode group; lossless-vs-lossy agreement, determinism, block/training-duration sweeps, the ms5 int32 ceiling, parameter comparison | `sorting/SORTING_COMPARISON_FINDINGS.md`, `sorting/ms5_parameter_comparison.md` |
-| [`lfp/`](lfp/README.md) | 625 Hz + 125 Hz LFP generation and the loupe viewer | `lfp/README.md` |
+| [`lfp/`](lfp/README.md) | 625 Hz + 125 Hz LFP generation | `lfp/README.md` |
+| [`visualization/`](visualization/README.md) | Build a portable "viz bundle" on the server, download it to a local drive, and review EMG + LFP + sorting in a local **loupe** viewer | `visualization/README.md` |
 | [`si_frame_slice_memory/`](si_frame_slice_memory/) | Upstream SpikeInterface bug: `frame_slice` / `BinaryFolderRecording` worker memory scales with the full parent recording, not the slice (root-caused while measuring `training_duration` footprint) | `si_frame_slice_memory/frame_slice_memory_FINDINGS.md` |
 
 ## Pipeline order
@@ -35,10 +36,12 @@ MountainSort5, and characterize what perturbs the sort.
 1. `compression/` — `01`–`08`, `17`: benchmark, then `06_convert.py` /
    `08_convert_session.py` produce the `*.blosc-zstd.zarr` (lossless) and
    `*.wavpack-bps2.25.zarr` (lossy) stores.
-2. `lfp/` — `09`, `13_make_subsampled_lfp`, `14_launch_loupe`: LFPs + viewer from
-   the 30 kHz store.
+2. `lfp/` — `09`, `13_make_subsampled_lfp`: 625 Hz then 125 Hz LFPs from the
+   30 kHz store.
 3. `sorting/` — `10`–`24`: sort each store, compare lossless vs lossy, then sweep
    sorter parameters (determinism, block/training duration) and curate.
+4. `visualization/` — `build_bundle` (server) → `download_bundle` (local) →
+   `launch_loupe` (local): review EMG + LFP + the 48 h sorting in loupe.
 
 Numeric script prefixes (`01`–`24`) are the original chronological order across
 all threads; they are preserved within each subfolder, so the sequence now reads

@@ -226,9 +226,10 @@ and `read_zarr(...).has_time_vector()` is `True`; if you need the time vector
 | `08_convert_session.py` | convert the full 2026-05-27_09-07-52 session (both experiments) to both stores |
 
 Downstream scripts that consume these stores moved to sibling folders during the
-2026-06-10 reorg: LFP generation + viewer (`09`, `13_make_subsampled_lfp`,
-`14_launch_loupe`) → `../lfp/`; spike sorting (`10`–`24`) → `../sorting/`. See the
-parent `../README.md` for the full study index.
+2026-06-10 reorg: LFP generation (`09`, `13_make_subsampled_lfp`) → `../lfp/`;
+spike sorting (`10`–`24`) → `../sorting/`; the loupe viewer (build → download →
+launch) → `../visualization/`. See the parent `../README.md` for the full study
+index.
 
 Reproduce via the workspace env, e.g.
 `cd gfys_workspace && uv run python ../tetrode_analyses/analyses/tetrode_preprocessing_and_sorting/compression/02_bench_matrix.py`.

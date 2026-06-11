@@ -50,6 +50,19 @@ analysis = [
 curation = [
     "spikeinterface-gui[desktop,web] @ git+https://github.com/grahamfindlay/spikeinterface-gui.git@dev",
 ]
+# Needed by the local loupe viewer in
+# analyses/tetrode_preprocessing_and_sorting/visualization/launch_loupe.py. The
+# viewer is deliberately SpikeInterface-free: it reads a pre-built "viz bundle"
+# (plain-xarray zarrs + a spikes parquet, produced on the server by
+# visualization/build_bundle.py) rather than SI sortings/recordings, so the only
+# extra it needs is loupe. loupe pulls polars, xarray, zarr, and numpy
+# transitively; base tetrode_analyses supplies the rest (and its viz palette via
+# tetrode_analyses.viz, which imports no SI). loupe is a sibling workspace
+# package, declared as a direct git URL per the workspace dual-use install
+# pattern (only gfys_workspace overrides it to the local editable ../loupe path).
+viz = [
+    "loupe @ git+https://github.com/CSC-UW/loupe.git@main",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.2,<0.10.0"]
