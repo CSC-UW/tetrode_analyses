@@ -39,14 +39,16 @@ analysis = [
     "zarr",
 ]
 # Needed by tetrode_analyses' curation/launch_curation.py to run the
-# spikeinterface-gui app (Qt desktop + Panel web backends). Pinned to the upstream
-# git main branch rather than the PyPI release (latest is 0.13.1) because the int32
-# scrollbar fix that enables curation of long (>2**31-sample) recordings -- commit
-# e1b5e7a, PR #263 "Fix int32 error once and for all" -- is merged on main but not
-# yet in any PyPI release. Direct git URL per the workspace dual-use install pattern;
-# only gfys_workspace overrides it to a local editable path.
+# spikeinterface-gui app (Qt desktop + Panel web backends). Points at the `dev`
+# integration branch of the grahamfindlay fork rather than the PyPI release (latest
+# is 0.13.1). dev = upstream main -- which carries the int32 scrollbar fix that
+# enables curation of long (>2**31-sample) recordings (commit e1b5e7a, PR #263,
+# not yet in any PyPI release) -- plus local sigui CLI `--recording` fixes (correct
+# args.recording_base_folder attribute + fail-loud exception handling). Direct git
+# URL per the workspace dual-use install pattern; only gfys_workspace overrides it
+# to a local editable path.
 curation = [
-    "spikeinterface-gui[desktop,web] @ git+https://github.com/SpikeInterface/spikeinterface-gui.git@main",
+    "spikeinterface-gui[desktop,web] @ git+https://github.com/grahamfindlay/spikeinterface-gui.git@dev",
 ]
 
 [build-system]
