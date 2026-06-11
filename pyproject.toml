@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Graham Findlay", email = "graham.b.findlay@gmail.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "open-ephys-python-tools>=1.0.1",
     "dask",
