@@ -13,6 +13,8 @@ dependencies = [
     "numpy",
     "pandas",
     "xarray",
+    "probeinterface",
+    "spikeinterface",
 ]
 
 [project.optional-dependencies]
@@ -24,8 +26,6 @@ dependencies = [
 # torch is selected only in gfys_workspace/pyproject.toml (a [tool.uv] index pin),
 # so an external clone of this package still resolves plain PyPI torch.
 sorting = [
-    "probeinterface",
-    "spikeinterface",
     "mountainsort5",
     "kilosort>=4.1.7",
     "wavpack-numcodecs",
