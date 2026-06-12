@@ -17,13 +17,17 @@ dependencies = [
 
 [project.optional-dependencies]
 # Needed by tetrode_analyses.spikeinterface (get_recording / convert_recording)
-# and the MountainSort5 sorting pipeline. spikeinterface pulls numcodecs, zarr,
-# scipy, and probeinterface transitively; wavpack-numcodecs and mountainsort5 are
-# third-party PyPI packages.
-sorting = [ 
+# and the MountainSort5 / Kilosort4 sorting pipelines. spikeinterface pulls
+# numcodecs, zarr, scipy, and probeinterface transitively; wavpack-numcodecs,
+# mountainsort5, and kilosort are third-party PyPI packages. kilosort pulls torch
+# (the GPU template-matcher), faiss-cpu, and numba transitively; the CUDA build of
+# torch is selected only in gfys_workspace/pyproject.toml (a [tool.uv] index pin),
+# so an external clone of this package still resolves plain PyPI torch.
+sorting = [
     "probeinterface",
     "spikeinterface",
     "mountainsort5",
+    "kilosort>=4.1.7",
     "wavpack-numcodecs",
 ]
 # Needed by tetrode_analyses.power (instantaneous + STFT bandpower) and

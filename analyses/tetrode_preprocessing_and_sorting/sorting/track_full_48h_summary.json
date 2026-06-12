@@ -1,0 +1,16 @@
+{
+  "operating_point": {
+    "chunk_s": 3600.0,
+    "overlap": 0.5,
+    "jaccard_min": 0.3,
+    "cosine_min": -1.0
+  },
+  "n_chunks": 96,
+  "n_candidate_edges": 9154,
+  "n_accepted_edges": 9154,
+  "n_global_units": 1352,
+  "median_chunks_per_global": 4.0,
+  "frac_global_spanning_ge_half": 0.016,
+  "n_singletons": 0,
+  "total_runtime_min": 283.7
+}

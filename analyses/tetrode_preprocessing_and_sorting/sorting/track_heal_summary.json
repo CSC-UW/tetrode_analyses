@@ -1,0 +1,21 @@
+{
+  "n_chunks": 96,
+  "heal_cosine_min": 0.95,
+  "heal_margin": 0.03,
+  "n_heals_applied": 519,
+  "before_heal": {
+    "n_global_units": 2474,
+    "median_chunks_per_global": 2.0,
+    "frac_span_ge_half": 0.008,
+    "frac_span_all": 0.0,
+    "max_chunks": 96
+  },
+  "after_heal": {
+    "n_global_units": 1955,
+    "median_chunks_per_global": 2.0,
+    "frac_span_ge_half": 0.015,
+    "frac_span_all": 0.002,
+    "max_chunks": 96
+  },
+  "heal_cosine_median": 0.9937
+}

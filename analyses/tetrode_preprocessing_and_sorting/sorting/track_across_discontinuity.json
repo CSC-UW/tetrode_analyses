@@ -1,0 +1,101 @@
+{
+  "window_s": [
+    90000.0,
+    110000.0
+  ],
+  "discontinuity_s": 100000.0,
+  "chunk_s": 3600.0,
+  "overlap": 0.5,
+  "n_global_units": 246,
+  "discontinuity_boundary_chunks": [
+    4,
+    5
+  ],
+  "bridge_rate_at_discontinuity": 1.0,
+  "median_bridge_rate_other_boundaries": 1.0,
+  "n_bridged_across_discontinuity": 71,
+  "n_split_like_at_discontinuity": 43,
+  "per_boundary": [
+    {
+      "boundary_mid_s": 92700.0,
+      "n_candidate": 82,
+      "n_accepted": 82,
+      "n_a_units": 82,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 94500.0,
+      "n_candidate": 98,
+      "n_accepted": 98,
+      "n_a_units": 98,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 96300.0,
+      "n_candidate": 88,
+      "n_accepted": 88,
+      "n_a_units": 88,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 98100.0,
+      "n_candidate": 83,
+      "n_accepted": 83,
+      "n_a_units": 83,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 99900.0,
+      "n_candidate": 71,
+      "n_accepted": 71,
+      "n_a_units": 71,
+      "bridge_rate": 1.0,
+      "is_discontinuity": true
+    },
+    {
+      "boundary_mid_s": 101700.0,
+      "n_candidate": 86,
+      "n_accepted": 86,
+      "n_a_units": 86,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 103500.0,
+      "n_candidate": 86,
+      "n_accepted": 86,
+      "n_a_units": 86,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 105300.0,
+      "n_candidate": 70,
+      "n_accepted": 70,
+      "n_a_units": 70,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 107100.0,
+      "n_candidate": 101,
+      "n_accepted": 101,
+      "n_a_units": 101,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    },
+    {
+      "boundary_mid_s": 108900.0,
+      "n_candidate": 114,
+      "n_accepted": 114,
+      "n_a_units": 114,
+      "bridge_rate": 1.0,
+      "is_discontinuity": false
+    }
+  ],
+  "single_48h_contrast": "106 units"
+}

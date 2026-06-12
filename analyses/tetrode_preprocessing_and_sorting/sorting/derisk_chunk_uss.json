@@ -1,0 +1,14 @@
+{
+  "chunk_start_s": 86400.0,
+  "chunk_s": 1800.0,
+  "start_frame": 2592000000,
+  "materialize_min": 0.3,
+  "sort_min": 1.1,
+  "n_units": 110,
+  "peak_uss_gb": 7.7,
+  "peak_rss_gb": 22.7,
+  "peak_cpu_pct": 211.0,
+  "binary_gb": 13.8,
+  "full_parent_gb_reference": 415.0,
+  "verdict": "PASS (per-chunk scale)"
+}

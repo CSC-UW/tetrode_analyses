@@ -1,0 +1,61 @@
+{
+  "epoch_s": [
+    36000.0,
+    43200.0
+  ],
+  "chunk_s": 1800.0,
+  "overlap_frac": 0.5,
+  "jaccard_min": 0.5,
+  "cosine_min": 0.9,
+  "reconstruction_min": 10.0,
+  "n_candidate_edges": 592,
+  "score": {
+    "n_ref_total": 119,
+    "n_recon_total": 162,
+    "all_units": {
+      "n_ref": 119,
+      "matched": 74,
+      "match_frac": 0.622,
+      "mean_agreement": 0.7993
+    },
+    "permissive": {
+      "n_ref": 113,
+      "matched": 72,
+      "match_frac": 0.637,
+      "mean_agreement": 0.7987
+    },
+    "moderate": {
+      "n_ref": 78,
+      "matched": 50,
+      "match_frac": 0.641,
+      "mean_agreement": 0.8011
+    },
+    "conservative": {
+      "n_ref": 41,
+      "matched": 33,
+      "match_frac": 0.805,
+      "mean_agreement": 0.8218
+    }
+  },
+  "chunk_span_stats": {
+    "n_chunks": 7,
+    "median_members_per_global": 4.0,
+    "frac_global_spanning_all_chunks": 0.407,
+    "n_singletons": 0
+  },
+  "intrinsic_ceiling": {
+    "moderate_match_frac_mean": 0.888,
+    "moderate_mean_agreement_mean": 0.7823,
+    "per_chunk_match_frac": [
+      0.897,
+      0.885,
+      0.821,
+      0.872,
+      0.923,
+      0.923,
+      0.897
+    ]
+  },
+  "tracking_lossless_vs_ceiling": true,
+  "PASS_moderate_tier_absolute_0.9": false
+}

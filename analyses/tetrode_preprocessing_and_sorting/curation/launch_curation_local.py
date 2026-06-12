@@ -69,7 +69,7 @@ def main() -> None:
     analyzer_path = args.data_dir / analyzer_rel
     if not analyzer_path.exists():
         raise FileNotFoundError(
-            f"analyzer.zarr not found at {analyzer_path}. Re-run "
+            f"analyzer not found at {analyzer_path}. Re-run "
             "download_curation_bundle.py."
         )
 

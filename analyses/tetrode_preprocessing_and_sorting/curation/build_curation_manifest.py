@@ -8,8 +8,8 @@ each item straight from its real location to an external drive.
 
 Curation needs only two things:
 
-  * ``analyzer.zarr`` (~1.7 GB) — the SortingAnalyzer. It embeds its own sorting
-    (so ``aggregated/`` and ``by_group/`` are not needed) and references its
+  * ``analyzer_clustered.zarr`` (~2.5 GB) — the SortingAnalyzer. It embeds its own
+    sorting (so ``aggregated/`` and ``by_group/`` are not needed) and references its
     recording by a relative path.
   * the recording the sort was produced from — the ``blosc-zstd`` store
     (~352 GB), needed only for the **traces** view. Pass ``--no-traces`` to omit
@@ -17,7 +17,8 @@ Curation needs only two things:
 
 The manifest records each item's ``dest_relpath`` so the download preserves the
 analyzer→recording relative layout (analyzer at
-``sortings_seed42_pcafix/<sorting>/analyzer.zarr``, recording at the drive root);
+``sortings_seed42_pcafix/tracked_48h/analyzer_clustered.zarr``, recording at the
+drive root);
 then ``load_sorting_analyzer`` auto-resolves the recording locally with no
 reconstruction — bit-exact, the same data that was sorted.
 
@@ -38,7 +39,8 @@ from tetrode_analyses import experiment as exp
 
 SUBJECT, EXPERIMENT = "TTM-001", "TTM-NOD"
 DEFAULT_SORTINGS_SUBDIR = "sortings_seed42_pcafix"
-DEFAULT_SORTING = "blosc-43200s-train3600s"  # 48 h, 12 h blocks, 1 h training window
+DEFAULT_SORTING = "tracked_48h"  # chunk-tracked 48 h sort (clustered + gap-healed)
+DEFAULT_ANALYZER_NAME = "analyzer_clustered.zarr"  # geometry-free QC analyzer (script 37)
 # The recording the sort was produced from (the analyzer references it by relative
 # path). We deliberately support ONLY this store, never a smaller/lossy variant.
 RECORDING_COMPRESSOR = "blosc-zstd"
@@ -61,6 +63,11 @@ def main() -> None:
     parser.add_argument("--sorting", default=DEFAULT_SORTING)
     parser.add_argument("--sortings-subdir", default=DEFAULT_SORTINGS_SUBDIR)
     parser.add_argument(
+        "--analyzer-name", default=DEFAULT_ANALYZER_NAME,
+        help="Analyzer zarr filename under <sortings-subdir>/<sorting>/ "
+        f"(default {DEFAULT_ANALYZER_NAME}).",
+    )
+    parser.add_argument(
         "--no-traces",
         action="store_true",
         help="Omit the recording; curate without the raw-traces view.",
@@ -81,9 +88,9 @@ def main() -> None:
     session = root.name
     with_traces = not args.no_traces
 
-    analyzer_path = root / args.sortings_subdir / args.sorting / "analyzer.zarr"
+    analyzer_path = root / args.sortings_subdir / args.sorting / args.analyzer_name
     if not analyzer_path.exists():
-        raise FileNotFoundError(f"analyzer.zarr not found: {analyzer_path}")
+        raise FileNotFoundError(f"analyzer not found: {analyzer_path}")
     recording_path = root / f"{session}.{RECORDING_COMPRESSOR}.zarr"
     if with_traces and not recording_path.exists():
         raise FileNotFoundError(
@@ -100,12 +107,12 @@ def main() -> None:
         }
 
     # dest_relpaths preserve the analyzer -> recording relative link: the analyzer
-    # at sortings_subdir/<sorting>/analyzer.zarr references ../../../<rec>.zarr, so
+    # at sortings_subdir/<sorting>/<analyzer_name> references ../../../<rec>.zarr, so
     # the recording must land at the drive root for auto-resolution.
     items = [
         item(
             "analyzer", analyzer_path,
-            f"{args.sortings_subdir}/{args.sorting}/analyzer.zarr", True,
+            f"{args.sortings_subdir}/{args.sorting}/{args.analyzer_name}", True,
         )
     ]
     if with_traces:
@@ -119,6 +126,7 @@ def main() -> None:
         "experiment": EXPERIMENT,
         "session": session,
         "sorting": args.sorting,
+        "analyzer_name": args.analyzer_name,
         "sortings_subdir": args.sortings_subdir,
         "recording_compressor": RECORDING_COMPRESSOR,
         "with_traces": with_traces,

@@ -30,7 +30,7 @@ import time
 DEFAULT_REMOTE = "tononi-2"
 DEFAULT_MANIFEST = (
     "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/"
-    "curation_bundles/blosc-43200s-train3600s.manifest.json"
+    "curation_bundles/tracked_48h.manifest.json"
 )
 
 

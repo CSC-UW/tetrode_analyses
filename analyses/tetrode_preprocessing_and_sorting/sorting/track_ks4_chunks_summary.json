@@ -1,0 +1,132 @@
+{
+  "epoch_s": [
+    36000.0,
+    57600.0
+  ],
+  "chunk_s": 3600.0,
+  "overlap": 0.5,
+  "n_chunks": 11,
+  "amp_thr_uv": 170.0,
+  "jaccard_min": 0.3,
+  "ks4_minutes": 179.7,
+  "ks4": {
+    "n_boundaries": 10,
+    "n_clean": 255,
+    "n_bridged": 197,
+    "bridge_rate": 0.773,
+    "implied_survival_10": 0.0757,
+    "implied_survival_95": 0.0,
+    "per_boundary": [
+      {
+        "chunk_a": 0,
+        "n_clean": 26,
+        "n_bridged": 19
+      },
+      {
+        "chunk_a": 1,
+        "n_clean": 25,
+        "n_bridged": 23
+      },
+      {
+        "chunk_a": 2,
+        "n_clean": 28,
+        "n_bridged": 23
+      },
+      {
+        "chunk_a": 3,
+        "n_clean": 28,
+        "n_bridged": 19
+      },
+      {
+        "chunk_a": 4,
+        "n_clean": 26,
+        "n_bridged": 17
+      },
+      {
+        "chunk_a": 5,
+        "n_clean": 26,
+        "n_bridged": 19
+      },
+      {
+        "chunk_a": 6,
+        "n_clean": 24,
+        "n_bridged": 17
+      },
+      {
+        "chunk_a": 7,
+        "n_clean": 24,
+        "n_bridged": 20
+      },
+      {
+        "chunk_a": 8,
+        "n_clean": 23,
+        "n_bridged": 19
+      },
+      {
+        "chunk_a": 9,
+        "n_clean": 25,
+        "n_bridged": 21
+      }
+    ]
+  },
+  "ms5": {
+    "n_boundaries": 10,
+    "n_clean": 301,
+    "n_bridged": 263,
+    "bridge_rate": 0.874,
+    "implied_survival_10": 0.2594,
+    "implied_survival_95": 3e-06,
+    "per_boundary": [
+      {
+        "chunk_a": 20,
+        "n_clean": 27,
+        "n_bridged": 26
+      },
+      {
+        "chunk_a": 21,
+        "n_clean": 31,
+        "n_bridged": 30
+      },
+      {
+        "chunk_a": 22,
+        "n_clean": 33,
+        "n_bridged": 31
+      },
+      {
+        "chunk_a": 23,
+        "n_clean": 32,
+        "n_bridged": 29
+      },
+      {
+        "chunk_a": 24,
+        "n_clean": 30,
+        "n_bridged": 28
+      },
+      {
+        "chunk_a": 25,
+        "n_clean": 30,
+        "n_bridged": 26
+      },
+      {
+        "chunk_a": 26,
+        "n_clean": 31,
+        "n_bridged": 21
+      },
+      {
+        "chunk_a": 27,
+        "n_clean": 30,
+        "n_bridged": 24
+      },
+      {
+        "chunk_a": 28,
+        "n_clean": 29,
+        "n_bridged": 25
+      },
+      {
+        "chunk_a": 29,
+        "n_clean": 28,
+        "n_bridged": 23
+      }
+    ]
+  }
+}

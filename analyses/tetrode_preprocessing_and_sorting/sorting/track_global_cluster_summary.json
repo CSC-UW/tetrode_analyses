@@ -1,0 +1,59 @@
+{
+  "n_chunks": 96,
+  "best_max_gap": 3,
+  "cosine_min": 0.95,
+  "clean_amp_uv": 170.0,
+  "configs": {
+    "consecutive_only(max_gap=none)": {
+      "n_global": 2474,
+      "median_span_all": 2.0,
+      "frac_span_ge_half": 0.008,
+      "n_clean": 456,
+      "clean_median_span": 4.0,
+      "clean_frac_span_ge_half": 0.026,
+      "clean_isi_viol_median": 0.0001,
+      "longclean_isi_viol_median": 0.0005,
+      "longclean_isi_viol_p90": 0.0016,
+      "n_long_clean": 12
+    },
+    "global_max_gap=1": {
+      "n_global": 2075,
+      "median_span_all": 2.0,
+      "frac_span_ge_half": 0.014,
+      "n_clean": 412,
+      "clean_median_span": 5.0,
+      "clean_frac_span_ge_half": 0.039,
+      "clean_isi_viol_median": 0.0002,
+      "longclean_isi_viol_median": 0.0007,
+      "longclean_isi_viol_p90": 0.0017,
+      "n_long_clean": 16,
+      "n_merges": 399
+    },
+    "global_max_gap=2": {
+      "n_global": 2138,
+      "median_span_all": 2.0,
+      "frac_span_ge_half": 0.013,
+      "n_clean": 411,
+      "clean_median_span": 4.0,
+      "clean_frac_span_ge_half": 0.039,
+      "clean_isi_viol_median": 0.0002,
+      "longclean_isi_viol_median": 0.0006,
+      "longclean_isi_viol_p90": 0.0017,
+      "n_long_clean": 16,
+      "n_merges": 336
+    },
+    "global_max_gap=3": {
+      "n_global": 2204,
+      "median_span_all": 2.0,
+      "frac_span_ge_half": 0.013,
+      "n_clean": 416,
+      "clean_median_span": 4.0,
+      "clean_frac_span_ge_half": 0.041,
+      "clean_isi_viol_median": 0.0001,
+      "longclean_isi_viol_median": 0.0006,
+      "longclean_isi_viol_p90": 0.0017,
+      "n_long_clean": 17,
+      "n_merges": 270
+    }
+  }
+}

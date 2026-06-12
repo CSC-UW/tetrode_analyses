@@ -1,4 +1,4 @@
-"""Launch the spikeinterface-gui curation GUI for the 12 h-block sort.
+"""Launch the spikeinterface-gui curation GUI for the chunk-tracked 48 h sort.
 
 `--mode web` (default) runs the Panel web backend, headless-safe: it does NOT
 auto-open a browser (tononi-2 has no display, and the default `www-browser` is
@@ -27,12 +27,13 @@ import sys
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-# ANALYZER_PATH = Path(
-#    "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/"
-#    "sortings_seed42_pcafix/blosc-43200s-train3600s/analyzer.zarr"
-# )
+# Chunk-tracked 48 h sort, geometry-free QC analyzer (scripts 36/37; the recommended
+# sorting). Earlier sorts kept here for reference:
+#   .../sortings_seed42_pcafix/blosc-43200s-train3600s/analyzer.zarr   (12 h-block scheme3)
+#   .../sortings_seed42_pcafix/blosc-scheme2-train3600s/analyzer.zarr  (48 h single-block)
 ANALYZER_PATH = Path(
-    "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/sortings_seed42_pcafix/blosc-scheme2-train3600s/analyzer.zarr"
+    "/nvme/neuropixels/tetrode_data/2026-05-27_09-07-52/"
+    "sortings_seed42_pcafix/tracked_48h/analyzer_clustered.zarr"
 )
 DEFAULT_PORT = 8000
 
@@ -43,12 +44,15 @@ STYLES = {
     "grahams_curation": {
         "layout_file": SCRIPT_DIR / "grahams_curation_layout.json",
         "settings_file": SCRIPT_DIR / "grahams_curation_settings.json",
+        # Columns that drive the curation gate (rp_contamination OR sliding_rp_violation
+        # + firing-rate floor); see _track_eval.isolation_tier_mask / TRACKING_FINDINGS.md.
         "displayed_unit_properties": [
             "group",
-            "snr",
             "firing_rate",
-            "presence_ratio",
-            "isi_violations_ratio",
+            "rp_contamination",
+            "sliding_rp_violation",
+            "snr",
+            "num_spikes",
         ],
     },
 }
@@ -70,7 +74,7 @@ def style_kwargs(style_name):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Launch the curation GUI for the 12 h-block sort analyzer."
+        description="Launch the curation GUI for the chunk-tracked 48 h sort analyzer."
     )
     parser.add_argument(
         "--mode",

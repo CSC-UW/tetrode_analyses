@@ -1,10 +1,10 @@
 ---
-title: MountainSort5 spike-sorting study for tetrode session 2026-05-27_09-07-52
+title: MountainSort5 + Kilosort4 spike-sorting study for tetrode session 2026-05-27_09-07-52
 scope: tetrode_analyses
 status: active
 source: code_inspection
 created: 2026-06-10
-last_updated: 2026-06-10
+last_updated: 2026-06-11
 confidence: high
 confirmed_by_user: not_required
 ---
@@ -14,6 +14,11 @@ confirmed_by_user: not_required
 Downstream of the compressed Zarr stores (`../compression/`): spike sort the full
 48 h session by tetrode group with MountainSort5, then study what perturbs the
 sort. Part of the `tetrode_preprocessing_and_sorting` study (see `../README.md`).
+
+A second sorter, **Kilosort4** (`30_`–`32_`), is run on the same lossless store with
+the same preprocessing (bandpass 300–6000 Hz + global CMR) but no drift correction,
+by tetrode group, and compared against the MS5 single-block (scheme-2) sort on
+identical input. KS4 runs on the GPU (`refs/kilosort4.pdf` is the reference paper).
 
 ## Canonical writeups
 
@@ -50,4 +55,7 @@ A closely related upstream investigation (the SpikeInterface `frame_slice` /
 | `27_sort_48h_singleblock_scheme2.py` | full-48 h sort as a single scheme-2 block / 1 h training (large-block limit; counterpart to `24_`) + footprint → `blosc-scheme2-train3600s/` |
 | `28_build_analyzer_singleblock_scheme2.py` | build the Zarr `SortingAnalyzer` for the single-block scheme-2 sort (13 extensions; tetrode-group sparsity) → `blosc-scheme2-train3600s/analyzer.zarr` |
 | `29_compare_singleblock_vs_12hblock.py` | agreement of single-block scheme 2 vs the 12 h-block scheme-3 sort, raw + curated tiers → `comparison_singleblock_vs_12hblock_summary.json`, `agreement_singleblock_vs_12hblock.png` |
+| `30_sort_ks4.py` | full-48 h **Kilosort4** sort by tetrode group, NO drift correction, same preprocessing as MS5; end-to-end footprint incl. GPU → `blosc-ks4-nodrift/`, `sorting_ks4_summary.json` |
+| `31_build_analyzer_ks4.py` | build the Zarr `SortingAnalyzer` for the KS4 sort (13 extensions; tetrode-group sparsity; counterpart to `28_`) → `blosc-ks4-nodrift/analyzer.zarr` |
+| `32_compare_ks4_vs_ms5.py` | agreement of KS4 vs MS5 (scheme-2 single block) on identical input, raw + curated tiers → `comparison_ks4_vs_ms5_summary.json`, `agreement_ks4_vs_ms5.png` |
 | `probe_pca_solver.py` / `probe_pca_solver_np.py` | instrumented `(L, n_features, solver)` probes (tetrode + Neuropixels) for the PCA-nondeterminism analysis |
