@@ -15,9 +15,14 @@ dependencies = [
     "xarray",
     "probeinterface",
     "spikeinterface",
+    "zarr",
 ]
 
 [project.optional-dependencies]
+lossy_compression = [
+    "wavpack-numcodecs",
+]
+
 # Needed by tetrode_analyses.spikeinterface (get_recording / convert_recording)
 # and the MountainSort5 / Kilosort4 sorting pipelines. spikeinterface pulls
 # numcodecs, zarr, scipy, and probeinterface transitively; wavpack-numcodecs,
@@ -28,7 +33,6 @@ dependencies = [
 sorting = [
     "mountainsort5",
     "kilosort>=4.1.7",
-    "wavpack-numcodecs",
 ]
 # Needed by tetrode_analyses.power (instantaneous + STFT bandpower) and
 # tetrode_analyses.plotting (SWA timetraces). ecephys supplies the signal
@@ -40,7 +44,6 @@ analysis = [
     "ecephys @ git+https://github.com/CSC-UW/ecephys.git@develop",
     "matplotlib",
     "seaborn",
-    "zarr",
 ]
 # Needed by tetrode_analyses' curation/launch_curation.py to run the
 # spikeinterface-gui app (Qt desktop + Panel web backends). Points at the `dev`
