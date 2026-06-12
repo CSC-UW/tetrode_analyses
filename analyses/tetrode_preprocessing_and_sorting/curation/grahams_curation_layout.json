@@ -1,5 +1,5 @@
 {
-    "zone1": ["unitlist", "spikelist", "curation", "merge", "probe"],
+    "zone1": ["unitlist", "spikelist", "curation", "merge"],
     "zone2": ["spikerate"],
     "zone3": ["trace", "tracemap", "spikeamplitude", "amplitudescalings"],
     "zone4": [],

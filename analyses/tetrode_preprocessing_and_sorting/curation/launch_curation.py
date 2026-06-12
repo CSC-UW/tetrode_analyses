@@ -44,15 +44,19 @@ STYLES = {
     "grahams_curation": {
         "layout_file": SCRIPT_DIR / "grahams_curation_layout.json",
         "settings_file": SCRIPT_DIR / "grahams_curation_settings.json",
-        # Columns that drive the curation gate (rp_contamination OR sliding_rp_violation
+        # `tier`/`n_chunks`/`track_hours` are persisted unit properties (script 45):
+        # sort the unit list by `tier` (or `tier_level`) to group conservative/moderate/
+        # permissive, or by `n_chunks`/`track_hours` for the longest-tracked units. The
+        # rest are the metrics driving the gate (rp_contamination OR sliding_rp_violation
         # + firing-rate floor); see _track_eval.isolation_tier_mask / TRACKING_FINDINGS.md.
         "displayed_unit_properties": [
             "group",
+            "tier",
+            "n_chunks",
+            "track_hours",
             "firing_rate",
             "rp_contamination",
             "sliding_rp_violation",
-            "snr",
-            "num_spikes",
         ],
     },
 }

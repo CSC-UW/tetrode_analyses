@@ -1,8 +1,4 @@
 {
-    "probe": {
-        "show_channel_id": true,
-        "method_localize_unit": "monopolar_triangulation"
-    },
     "waveform": {
         "mode": "flatten",
         "plot_waveforms_samples": true

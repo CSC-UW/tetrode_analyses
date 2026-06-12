@@ -26,6 +26,26 @@ Part of the `tetrode_preprocessing_and_sorting` study (see `../README.md`).
 | `launch_curation_local.py` | **local** | Curate over the downloaded bundle (Qt desktop or web). |
 | `grahams_curation_layout.json`, `grahams_curation_settings.json` | both | `--style grahams_curation` preset (layout + per-view settings). |
 
+## Filtering by tier and track length
+
+The analyzer carries four persisted unit properties (written by
+`../sorting/45_add_curation_unit_properties.py`; re-run it after any analyzer rebuild):
+
+| column | meaning |
+|---|---|
+| `tier` | strictest isolation tier the unit passes: `conservative` > `moderate` > `permissive` > `none` (gate = `_track_eval.isolation_tier_mask`) |
+| `tier_level` | 3/2/1/0 for the above (numeric — sorts best-first) |
+| `n_chunks` | track span = number of distinct 1 h member chunks |
+| `track_hours` | approx tracked duration ≈ `(n_chunks+1)·0.5 h` |
+
+spikeinterface-gui has no threshold-filter box, but the unit list is **sortable** — click a
+header to sort by `tier_level` (conservative at the top) or `n_chunks` / `track_hours`
+(longest-tracked first), then curate from the top. The metrics view (scatter of quality
+metrics) additionally lets you box/lasso-select units in metric space. `--style
+grahams_curation` shows `group, tier, n_chunks, track_hours, firing_rate, rp_contamination,
+sliding_rp_violation` by default; toggle others with the visible-columns tree. Tier counts
+(of 2204 units, nested): **103 conservative ⊆ 173 moderate ⊆ 262 permissive**.
+
 ## Local curation pipeline
 
 ```bash
