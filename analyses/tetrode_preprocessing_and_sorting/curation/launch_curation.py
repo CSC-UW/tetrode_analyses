@@ -127,7 +127,9 @@ def main():
 
     import spikeinterface as si
 
-    sorting_analyzer = si.load_sorting_analyzer(args.analyzer_path)
+    # The GUI loads only the extensions each view needs, on demand, so skip the
+    # eager full load (the waveforms extension alone is ~1.3 GB).
+    sorting_analyzer = si.load_sorting_analyzer(args.analyzer_path, load_extensions=False)
     skw = style_kwargs(args.style)
 
     if args.mode == "web":
