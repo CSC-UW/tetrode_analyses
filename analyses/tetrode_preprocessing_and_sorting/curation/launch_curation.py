@@ -46,14 +46,22 @@ STYLES = {
         "settings_file": SCRIPT_DIR / "grahams_curation_settings.json",
         # `tier`/`n_chunks`/`track_hours` are persisted unit properties (script 45):
         # sort the unit list by `tier` (or `tier_level`) to group conservative/moderate/
-        # permissive, or by `n_chunks`/`track_hours` for the longest-tracked units. The
-        # rest are the metrics driving the gate (rp_contamination OR sliding_rp_violation
+        # permissive, or by `n_chunks`/`track_hours` for the longest-tracked units.
+        # `unitrefine_neural_prob`/`unitrefine_label` are the ADVISORY noise/neural ranking
+        # (script 50, tetrode_analyses.unitrefine_advisory): sort by `unitrefine_neural_prob`
+        # to rank most-neural-first. ADVISORY ONLY -- the probability is uncalibrated on
+        # tetrodes (~0.5), so rank by it; do not treat the 0.5 label as a hard cut. The rest
+        # are the metrics driving the isolation gate (rp_contamination OR sliding_rp_violation
         # + firing-rate floor); see _track_eval.isolation_tier_mask / TRACKING_FINDINGS.md.
         "displayed_unit_properties": [
             "group",
             "tier",
             "n_chunks",
             "track_hours",
+            "n_windows",          # matching-pursuit tracks (analyzer_tracks.zarr): windows present
+            "identity_min_cos",   # matching-pursuit tracks: low (<0.7) = suspect drift/swap, inspect
+            "unitrefine_label",
+            "unitrefine_neural_prob",
             "firing_rate",
             "rp_contamination",
             "sliding_rp_violation",
@@ -99,6 +107,12 @@ def main():
         default=None,
         help="Named layout+settings preset (e.g. 'grahams_curation'). Default: GUI defaults.",
     )
+    parser.add_argument(
+        "--analyzer-path",
+        default=str(ANALYZER_PATH),
+        help="Analyzer to curate (default: the chunk-tracked analyzer_clustered.zarr). Use e.g. "
+        ".../track_eval/mp_long_s2000_d170000/analyzer_tracks.zarr for the matching-pursuit 48 h tracks.",
+    )
     args = parser.parse_args()
     # argparse has consumed our flags; clear sys.argv so Qt's QApplication (desktop
     # mode, via pyqtgraph mkQApp) doesn't reinterpret `--style` as its own built-in
@@ -113,7 +127,7 @@ def main():
 
     import spikeinterface as si
 
-    sorting_analyzer = si.load_sorting_analyzer(ANALYZER_PATH)
+    sorting_analyzer = si.load_sorting_analyzer(args.analyzer_path)
     skw = style_kwargs(args.style)
 
     if args.mode == "web":

@@ -70,6 +70,17 @@ curation = [
 viz = [
     "loupe @ git+https://github.com/CSC-UW/loupe.git@main",
 ]
+# Needed by tetrode_analyses.unitrefine_advisory (advisory noise/neural ranking for tetrode
+# sortings, retrained from UnitRefine's published training data -- see sorting scripts 47-50).
+# scikit-learn and joblib already arrive transitively via spikeinterface's quality-metrics stack;
+# huggingface_hub is the only genuine addition, used once to download + cache the training CSVs (the
+# fitted model and CSVs are cached locally thereafter, so reuse on future datasets needs only
+# scikit-learn + joblib, offline). All three are plain PyPI packages.
+advisory = [
+    "scikit-learn",
+    "huggingface-hub",
+    "joblib",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.2,<0.10.0"]

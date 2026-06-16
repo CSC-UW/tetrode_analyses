@@ -15,10 +15,14 @@ Downstream of the compressed Zarr stores (`../compression/`): spike sort the ful
 48 h session by tetrode group with MountainSort5, then study what perturbs the
 sort. Part of the `tetrode_preprocessing_and_sorting` study (see `../README.md`).
 
-A second sorter, **Kilosort4** (`30_`–`32_`), is run on the same lossless store with
-the same preprocessing (bandpass 300–6000 Hz + global CMR) but no drift correction,
-by tetrode group, and compared against the MS5 single-block (scheme-2) sort on
-identical input. KS4 runs on the GPU (`refs/kilosort4.pdf` is the reference paper).
+A second sorter, **Kilosort4** (`30_`–`32_`), was attempted on the same lossless store
+with the same preprocessing (bandpass 300–6000 Hz + global CMR), no drift correction,
+by tetrode group, for comparison against the MS5 single-block (scheme-2) sort. **It does
+not complete at 48 h on the 32 GB GPU** — KS4's final clustering allocates an
+`(n_spikes × n_clusters)` dense tensor that needs ~42 GiB for one tetrode's ~24 M
+48 h spikes. See **`KS4_FEASIBILITY_FINDINGS.md`** for the full diagnosis, the install
+recipe, and what would fit (≤24 h window, higher thresholds, time-block+stitch, bigger
+GPU). `refs/kilosort4.pdf` is the reference paper.
 
 ## Canonical writeups
 
@@ -30,7 +34,10 @@ identical input. KS4 runs on the GPU (`refs/kilosort4.pdf` is the reference pape
   non-determinism analysis (whitening seed + PCA solver).
 - **`ms5_parameter_comparison.md`** — MountainSort5 parameter defaults compared
   across vanilla ms5, the NP-quickstart example, and the SpikeInterface wrapper.
-- `mountainsort.pdf` — the MountainSort reference paper.
+- **`KS4_FEASIBILITY_FINDINGS.md`** — why Kilosort4 cannot complete a 48 h tetrode
+  sort on the 32 GB GPU (the clustering memory wall), the install recipe, the
+  failure ladder, the measured footprint vs MS5, and what would fit.
+- `mountainsort.pdf` / `refs/kilosort4.pdf` — the sorter reference papers.
 
 A closely related upstream investigation (the SpikeInterface `frame_slice` /
 `BinaryFolderRecording` memory blow-up, root-caused while measuring
@@ -55,7 +62,7 @@ A closely related upstream investigation (the SpikeInterface `frame_slice` /
 | `27_sort_48h_singleblock_scheme2.py` | full-48 h sort as a single scheme-2 block / 1 h training (large-block limit; counterpart to `24_`) + footprint → `blosc-scheme2-train3600s/` |
 | `28_build_analyzer_singleblock_scheme2.py` | build the Zarr `SortingAnalyzer` for the single-block scheme-2 sort (13 extensions; tetrode-group sparsity) → `blosc-scheme2-train3600s/analyzer.zarr` |
 | `29_compare_singleblock_vs_12hblock.py` | agreement of single-block scheme 2 vs the 12 h-block scheme-3 sort, raw + curated tiers → `comparison_singleblock_vs_12hblock_summary.json`, `agreement_singleblock_vs_12hblock.png` |
-| `30_sort_ks4.py` | full-48 h **Kilosort4** sort by tetrode group, NO drift correction, same preprocessing as MS5; end-to-end footprint incl. GPU → `blosc-ks4-nodrift/`, `sorting_ks4_summary.json` |
-| `31_build_analyzer_ks4.py` | build the Zarr `SortingAnalyzer` for the KS4 sort (13 extensions; tetrode-group sparsity; counterpart to `28_`) → `blosc-ks4-nodrift/analyzer.zarr` |
-| `32_compare_ks4_vs_ms5.py` | agreement of KS4 vs MS5 (scheme-2 single block) on identical input, raw + curated tiers → `comparison_ks4_vs_ms5_summary.json`, `agreement_ks4_vs_ms5.png` |
+| `30_sort_ks4.py` | full-48 h **Kilosort4** sort by tetrode group, NO drift, same preprocessing as MS5; footprint incl. GPU. **Does NOT complete at 48 h** — OOMs at clustering (see `KS4_FEASIBILITY_FINDINGS.md`); runnable for ≤24 h windows |
+| `31_build_analyzer_ks4.py` | (staged, never run) Zarr `SortingAnalyzer` for a KS4 sort (13 extensions; tetrode-group sparsity; counterpart to `28_`) — ready if a completed KS4 sort exists |
+| `32_compare_ks4_vs_ms5.py` | (staged, never run) agreement of KS4 vs MS5 (scheme-2 single block), raw + curated tiers — ready if a completed KS4 sort exists |
 | `probe_pca_solver.py` / `probe_pca_solver_np.py` | instrumented `(L, n_features, solver)` probes (tetrode + Neuropixels) for the PCA-nondeterminism analysis |

@@ -37,14 +37,24 @@ The analyzer carries four persisted unit properties (written by
 | `tier_level` | 3/2/1/0 for the above (numeric — sorts best-first) |
 | `n_chunks` | track span = number of distinct 1 h member chunks |
 | `track_hours` | approx tracked duration ≈ `(n_chunks+1)·0.5 h` |
+| `unitrefine_neural_prob` | **advisory** P(neural) ranking score in [0,1] (`tetrode_analyses.unitrefine_advisory`, script 50); sort descending for most-neural-first |
+| `unitrefine_label` | advisory `neural`/`noise` (the 0.5 call) |
+
+The two `unitrefine_*` columns are an **advisory ranking only**, from a UnitRefine noise/neural model
+retrained on 23 geometry-free, duration-robust features (scripts 47–50). The probability is
+*uncalibrated* on tetrode data (it sits near 0.5), so **rank by `unitrefine_neural_prob`** to triage —
+its order agrees with the isolation tiers (well-isolated units score most-neural) — but do **not** treat
+the 0.5 `unitrefine_label` cut as a hard noise filter. See `gfys_workspace` memory / the sorting scripts
+for the full out-of-distribution analysis.
 
 spikeinterface-gui has no threshold-filter box, but the unit list is **sortable** — click a
 header to sort by `tier_level` (conservative at the top) or `n_chunks` / `track_hours`
 (longest-tracked first), then curate from the top. The metrics view (scatter of quality
 metrics) additionally lets you box/lasso-select units in metric space. `--style
-grahams_curation` shows `group, tier, n_chunks, track_hours, firing_rate, rp_contamination,
-sliding_rp_violation` by default; toggle others with the visible-columns tree. Tier counts
-(of 2204 units, nested): **103 conservative ⊆ 173 moderate ⊆ 262 permissive**.
+grahams_curation` shows `group, tier, n_chunks, track_hours, unitrefine_label,
+unitrefine_neural_prob, firing_rate, rp_contamination, sliding_rp_violation` by default; toggle
+others with the visible-columns tree. Tier counts (of 2204 units, nested): **103 conservative ⊆
+173 moderate ⊆ 262 permissive**.
 
 ## Local curation pipeline
 

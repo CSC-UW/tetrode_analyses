@@ -4,16 +4,18 @@ USS/RSS/CPU + peak /nvme + peak GPU memory/utilization), split into the one-time
 materialize phase and the sort phase. The Kilosort4 counterpart to
 27_sort_48h_singleblock_scheme2.py (MountainSort5 scheme 2, single 48 h block).
 
-Why by group (not together)? Sorting all 16 tetrodes in one 64-channel run is far
-faster on the GPU, BUT KS4's final clustering then holds ALL 48 h x 64-ch spike
-features on the GPU at once (~29 GiB) and needs a further ~12 GiB clustering
-allocation -> ~42 GiB, which OOMs the 32 GB V100 (a hard wall; not fragmentation --
-`expandable_segments` confirmed reserved-unallocated was ~46 MiB). The per-tetrode
-clustering allocation (~12 GiB) is per spatial center and the SAME regardless of how
-many tetrodes share a run; only the feature baseline scales with tetrode count. So
-ONE tetrode per run (~1.8 GiB baseline + ~12 GiB clustering ~ 14 GiB) fits
-comfortably. By-group is slower (16 detection passes, ~8-12 h) but robust and is the
-exact per-tetrode analog of the MS5 reference.
+FORMER LIMITATION (now addressed via `clustering_chunk_size`) -- KS4's final clustering
+allocated an (n_spikes x n_clusters) DENSE tensor; one tetrode at 48 h has ~24 M spikes,
+so that allocation (~12.6 GiB) plus the ~30 GiB clustering working set needed ~42 GiB
+and OOMed the 32 GB V100. This was the SAME wall as sorting all tetrodes together (it is
+per-tetrode spike volume, NOT channel count or joint clustering), and no stock KS4
+parameter chunked it (max_cluster_subset/cluster_downsampling bound only the landmark
+subset). The patched kilosort fork adds a `clustering_chunk_size` setting that computes
+the per-spike cluster argmax in row chunks instead of one shot -- an EXACT change
+(identical sort), bounding peak GPU memory to roughly one (chunk x n_clusters) tile. Set
+here to 2_000_000 (see KS4 dict below). Detection already ran fine (~62 min/tetrode on
+GPU). Full original diagnosis + failure ladder are in KS4_FEASIBILITY_FINDINGS.md and
+the patch rationale in KS4_CLUSTERING_PATCH_PROPOSAL.md.
 
 Preprocessing is IDENTICAL to the MS5 runs: bandpass(300-6000 Hz) + global CMR,
 float32, materialized ONCE to a shared binary cache (`materialize_preprocessed`); the
@@ -60,14 +62,17 @@ SHARED_CACHE = SR / "_ks4_cmr_cache"
 OUT = SR / "blosc-ks4-nodrift"
 DISK_FLOOR_GB = 1800
 GPU_ID = 0
-# Sort BY TETRODE GROUP: one KS4 run per tetrode (4 ch), like MS5. Each tetrode's
-# clustering fits the 32 GB GPU; sorting together OOMs (see module docstring).
+# Sort BY TETRODE GROUP: one KS4 run per tetrode (4 ch), like MS5.
 # templates_from_data=False is REQUIRED (the data-derived universal-template KMeans
 # hangs for hours at 48 h); clear_cache frees reserved GPU memory between ops.
+# clustering_chunk_size=2_000_000 is what makes the 48 h clustering fit the 32 GB GPU
+# (chunks KS4's per-spike argmax instead of the full (n_spikes x n_clusters) matrix;
+# exact -- identical sort). Requires the patched kilosort fork (see module docstring).
 KS4 = dict(
     batch_size=300_000, do_CAR=False, do_correction=False, nblocks=0,
     skip_kilosort_preprocessing=False, nearest_chans=4, whitening_range=4,
     dminx=16.0, torch_device="auto",
+    clustering_chunk_size=2_000_000,  # bound clustering GPU memory (see docstring)
     grouping_property="group",  # one KS4 run per tetrode (by-group, like MS5)
     use_binary_file=True,       # rewrite a contiguous 4-ch .dat per tetrode (KS4 fast reader)
     sort_n_jobs=1,              # tetrodes sorted sequentially -> one KS4 process owns the GPU
