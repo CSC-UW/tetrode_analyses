@@ -60,6 +60,7 @@ STYLES = {
             "track_hours",
             "n_windows",          # matching-pursuit tracks (analyzer_tracks.zarr): windows present
             "identity_min_cos",   # matching-pursuit tracks: low (<0.7) = suspect drift/swap, inspect
+            "is_reseeded",        # re-seed tracks (analyzer_tracks_rs.zarr): 1 = added after the seed window
             "unitrefine_label",
             "unitrefine_neural_prob",
             "firing_rate",

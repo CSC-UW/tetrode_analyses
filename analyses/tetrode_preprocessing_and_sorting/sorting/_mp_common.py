@@ -75,11 +75,16 @@ def materialize_span(out_dir, start_s, dur_s, *, materialize_jobs=96):
     return materialize_chunk(ZARR, chunk, bin_dir, cmr="global", n_jobs=materialize_jobs)
 
 
-def build_templates_object(sorting, recording, *, ms_before=1.0, ms_after=2.0, n_jobs=16, with_snr=True):
-    """Group-sparse, RAW-unit Templates bank from a sorting+recording. Returns (templates, analyzer)."""
+def build_templates_object(sorting, recording, *, ms_before=1.0, ms_after=2.0, n_jobs=16, with_snr=True, seed=0):
+    """Group-sparse, RAW-unit Templates bank from a sorting+recording. Returns (templates, analyzer).
+
+    ``seed`` (default 0) pins random_spikes so the templates -- and hence dedup_sorting's borderline
+    merge decisions -- are REPRODUCIBLE run-to-run (otherwise unseeded sampling jitters the dedup'd
+    seed-bank size, e.g. 73-77 units across nominally identical runs).
+    """
     sparsity = ChannelSparsity.from_property(sorting, recording, by_property="group")
     az = si.create_sorting_analyzer(sorting, recording, format="memory", sparsity=sparsity, return_in_uV=False)
-    az.compute({"random_spikes": {}, "waveforms": {"ms_before": ms_before, "ms_after": ms_after},
+    az.compute({"random_spikes": {"seed": seed}, "waveforms": {"ms_before": ms_before, "ms_after": ms_after},
                 "templates": {}, "noise_levels": {}}, n_jobs=n_jobs)
     if with_snr:
         az.compute({"quality_metrics": {"metric_names": ["snr", "firing_rate"]}})
@@ -124,23 +129,52 @@ def _unit_groups_from_mask(mask, rec_groups):
     return np.array([int(rec_groups[np.flatnonzero(m)[0]]) for m in mask])
 
 
-def windowed_carry_forward(recording, init_templates, *, window_s=900.0, method_kwargs=None,
-                           n_jobs=16, reestimate=True, min_spikes_reestimate=15,
-                           ms_before=1.0, ms_after=2.0, reestimate_min_cos=None):
+def tsq_median(bank):
+    """Median per-template ||t||^2 (sum of squares over samples x active channels) of a sparse bank.
+
+    Wobble's detection objective is ~||t||^2-scaled, so a per-window wobble threshold set as
+    ``factor * tsq_median(bank)`` tracks each window's template energy (the adaptive-||t||^2 gate). It
+    lives HERE (not in _wobble_eval) so the production carry-forward loops can recompute it per window
+    without importing the eval harness; _wobble_eval re-exports it for the study scripts.
+    """
+    arr = np.asarray(bank.templates_array, dtype=np.float64)
+    return float(np.median((arr ** 2).sum(axis=(1, 2))))
+
+
+def windowed_carry_forward(recording, init_templates, *, window_s=900.0, method="circus-omp",
+                           method_kwargs=None, shape_gate_r=None, wobble_factor=None,
+                           n_jobs=16, reestimate=True, min_spikes_reestimate=100,
+                           ms_before=1.0, ms_after=2.0, reestimate_min_cos=None, max_windows=None):
     """Detect a fixed unit set across the recording window-by-window, carrying templates forward.
 
-    Each window: run circus-omp with the current bank; if reestimate, re-derive each PRESENT unit's
+    Each window: run the matcher (``method``, default "circus-omp"; "wobble" sets its per-window
+    threshold from ``wobble_factor``, and ``shape_gate_r`` applies the scale-invariant cosine
+    acceptance gate) with the current bank; if reestimate, re-derive each PRESENT unit's
     template from this window's detections (tracking drift) while KEEPING the prior template for units
     absent this window (so a unit that drops out for one window is still sought in the next -- the
     dropout-recovery mechanism). Returns (assembled NumpySorting over the full recording in absolute
     frames, counts array of shape (n_windows, n_units)).
+
+    ``min_spikes_reestimate`` (default 100) is the TEMPLATE-RELIABILITY FLOOR: re-estimate a unit's
+    template from a window only if it fired >= this many spikes there, else carry the prior (higher-
+    confidence) template -- i.e. never downgrade a >=100-spike template with a sparser, noisier estimate.
+    It matches the seed/re-seed admission bar (a re-estimated template needs as many spikes as the
+    initial one); runner scripts tie it to their --min-spikes by default, and decouple it only when the
+    admission bar is lowered to admit marginal/low-rate units (then carrying the trusted template beats
+    re-estimating from too few -- drift here is mild).
 
     ``reestimate_min_cos`` (default None = off): per-window re-estimation STEP-CAP. When set (e.g. 0.8),
     a window's re-estimated template is ACCEPTED only if its shift-tolerant 4-channel cosine to the
     current template is >= this value; otherwise the update is REJECTED and the current template is kept
     (frozen for that window). Gradual drift (cos ~0.95/window) passes; an abrupt one-window jump --- the
     signature of a track being captured by a louder same-tetrode neighbor (see MATCHING_PURSUIT_FINDINGS
-    "IDENTITY-SWAP") --- is blocked. Prevents re-estimation capture without harming real drift-tracking.
+    "IDENTITY-SWAP") --- is blocked.
+
+    MEASURED LIMITATION (2026-06-15): the observed swaps are GRADUAL multi-window walks (~0.99 cosine
+    per window, indistinguishable from a stable unit's re-estimation noise), NOT abrupt jumps -- so this
+    per-window cap is a no-op against them (a cap tight enough to catch the walk, ~0.99, also fires on
+    stable tracks). Kept as a guard against TRUE one-window jumps; the gradual-capture fix is template
+    COMPETITION (periodic re-seeding), not step-capping.
     """
     import spikeinterface.sortingcomponents.matching as _m  # noqa: F401 (ensure registered)
     fs = recording.get_sampling_frequency()
@@ -154,13 +188,17 @@ def windowed_carry_forward(recording, init_templates, *, window_s=900.0, method_
     cur_dense = np.asarray(init_templates.get_dense_templates(), dtype=np.float32)  # (n_units, n_samp, n_chan)
 
     bounds = [(s, min(s + wlen, total)) for s in range(0, total, wlen)]
+    if max_windows:
+        bounds = bounds[:max_windows]  # parity with windowed_carry_forward_reseed (A/B + smoke knob)
     all_samples, all_labels, counts = [], [], []
     n_capped = 0  # re-estimation updates rejected by the step-cap (reestimate_min_cos)
     for a, b in bounds:
         win = recording.frame_slice(a, b)
         win.reset_times()
         templates = templates_from_dense(cur_dense, mask, nbefore, unit_ids, recording.channel_ids)
-        mp, spikes = run_matching(win, templates, method_kwargs=method_kwargs, n_jobs=n_jobs)
+        mk = _window_method_kwargs(method, templates, method_kwargs=method_kwargs, wobble_factor=wobble_factor)
+        mp, spikes = run_matching(win, templates, method=method, method_kwargs=mk, n_jobs=n_jobs,
+                                  shape_gate_r=shape_gate_r)
         ufield = "cluster_index" if "cluster_index" in spikes.dtype.names else "unit_index"
         s_idx = spikes["sample_index"].astype(np.int64)
         l_idx = spikes[ufield].astype(np.int64)
@@ -198,11 +236,23 @@ def windowed_carry_forward(recording, init_templates, *, window_s=900.0, method_
     return assembled, np.array(counts)
 
 
-def run_matching(recording, templates, *, method="circus-omp", method_kwargs=None, n_jobs=16):
-    """Run a matching-pursuit method; return (NumpySorting in template-unit ids, raw spikes array)."""
+def run_matching(recording, templates, *, method="circus-omp", method_kwargs=None, n_jobs=16,
+                 shape_gate_r=None):
+    """Run a matching-pursuit method; return (NumpySorting in template-unit ids, raw spikes array).
+
+    ``shape_gate_r`` (default None = off): keep only spikes whose per-spike cosine to their ASSIGNED
+    unit template is >= shape_gate_r (see per_spike_cosine). This is a SCALE-INVARIANT acceptance gate
+    -- the shape analog of circus-omp's amplitude-ratio gate -- that controls precision without
+    recalibration across windows / re-seeds, and (unlike an absolute objective threshold) preserves
+    low-amplitude spikes. The returned spikes array is the FILTERED set, so downstream counts /
+    re-estimation see only the accepted spikes.
+    """
     spikes = find_spikes_from_templates(
         recording, templates, method=method, method_kwargs=method_kwargs or {},
         job_kwargs={"n_jobs": n_jobs, "chunk_duration": "1s", "progress_bar": False})
+    if shape_gate_r is not None:
+        r = per_spike_cosine(spikes, templates, recording)
+        spikes = spikes[r >= shape_gate_r]  # NaN (out-of-bounds snippet) fails the gate -> dropped
     names = spikes.dtype.names
     uf = "cluster_index" if "cluster_index" in names else "unit_index"
     samples = spikes["sample_index"].astype(np.int64)
@@ -212,8 +262,121 @@ def run_matching(recording, templates, *, method="circus-omp", method_kwargs=Non
     return mp, spikes
 
 
-def dedup_sorting(sorting, recording, *, cosine_min=0.9, max_shift_samples=10, coincidence_ms=0.3):
+def wobble_method_kwargs(templates, *, threshold, approx_rank=4, amplitude_variance=1.0,
+                         jitter_factor=8, max_iter=1000, refractory_period_frames=10,
+                         visibility_threshold=1.0, scale_min=0.0, scale_max=float("inf"),
+                         engine="numpy", torch_device="cpu", shared_memory=True):
+    """Build method_kwargs for run_matching(..., method="wobble").
+
+    SpikeInterface's WobbleMatch has a DIFFERENT method_kwargs shape from circus-omp: the
+    WobbleParameters fields nest under a ``parameters`` key, while engine/torch_device/shared_memory
+    are siblings (find_spikes_from_templates does WobbleMatch(rec, templates=..., **method_kwargs)).
+
+    RAW-UNIT WARNING: wobble detects on the normalized objective ``2*conv - ||t||^2`` (units of
+    amplitude^2), so ``threshold`` is gain^2-scale-dependent. Our templates are RAW units
+    (is_in_uV=False, gain 0.195), so the SI default threshold=50 (tuned for Neuropixels uV) is wrong
+    by orders of magnitude -- hence ``threshold`` is REQUIRED (no default) and must be calibrated
+    empirically (see 70_wobble_threshold_calib.py). circus-omp's ``amplitudes`` gate is, by contrast,
+    scale-invariant.
+
+    ``approx_rank`` is clamped to 4: a tetrode template has at most 4 active channels, so its spatial
+    rank is <= 4; approx_rank=5 (the SI default) keeps a 5th ~zero-singular-value component (waste +
+    latent nondeterminism). ``visibility_threshold`` is inert on the sparse-bank path (wobble takes
+    visibility straight from the group sparsity mask), but a DENSE bank would make it live in raw
+    units -- the assert below guards against that.
+    """
+    assert templates.are_templates_sparse(), \
+        "wobble_method_kwargs expects a group-sparse bank; a dense bank changes visibility semantics"
+    return {
+        "parameters": {
+            "threshold": float(threshold), "approx_rank": int(approx_rank),
+            "amplitude_variance": float(amplitude_variance), "jitter_factor": int(jitter_factor),
+            "max_iter": int(max_iter), "refractory_period_frames": int(refractory_period_frames),
+            "visibility_threshold": float(visibility_threshold),
+            "scale_min": float(scale_min), "scale_max": float(scale_max),
+        },
+        "engine": engine, "torch_device": torch_device, "shared_memory": shared_memory,
+    }
+
+
+def per_spike_fit(spikes, templates, recording):
+    """(a, r) per matched spike against its ASSIGNED unit template, batched per tetrode.
+
+      a = conv / ||t||^2                  -- AMPLITUDE scale (circus-omp gates exactly this, a>=0.8).
+      r = conv / (||t|| * ||snippet||)    -- SCALE-INVARIANT cosine / shape match (the shape gate).
+
+    The two come apart for low-amplitude spikes: a small-but-template-shaped spike has low ``a`` but
+    high ``r`` (the cosine PRESERVES it where an amplitude/objective gate drops it), while a large
+    wrong-shape fit has high ``a`` but low ``r``. Spikes whose snippet window falls outside the
+    recording get a=r=NaN. Factored from 74_wobble_normgate_prototype.py so the production shape gate
+    (per_spike_cosine / run_matching's shape_gate_r) and diagnostics share one implementation.
+    """
+    rec_groups = np.asarray(recording.get_property("group"))
+    chan_ids = np.asarray(recording.channel_ids)
+    ug = _unit_groups_from_mask(templates.sparsity.mask, rec_groups)  # tetrode group per template index
+    dense = np.asarray(templates.get_dense_templates(), dtype=np.float32)  # (n_units, n_samp, n_chan)
+    nbefore, n_samp = templates.nbefore, dense.shape[1]
+    nfr = recording.get_num_frames()
+    uf = "cluster_index" if "cluster_index" in spikes.dtype.names else "unit_index"
+    s_all = spikes["sample_index"].astype(np.int64)
+    ci_all = spikes[uf].astype(np.int64)
+    g_all = ug[ci_all]
+    tsq_u = np.array([float((dense[i][:, np.flatnonzero(rec_groups == ug[i])] ** 2).sum())
+                      for i in range(dense.shape[0])])  # ||t||^2 per template over its active channels
+    a_all = np.full(s_all.size, np.nan, dtype=np.float64)
+    r_all = np.full(s_all.size, np.nan, dtype=np.float64)
+    off_all = s_all - nbefore
+    valid = (off_all >= 0) & (off_all + n_samp <= nfr)
+    cols = np.arange(n_samp)
+    for g in np.unique(g_all):
+        on_g = np.flatnonzero((g_all == g) & valid)
+        if on_g.size == 0:
+            continue
+        chans = np.flatnonzero(rec_groups == g)
+        tr = np.asarray(recording.get_traces(channel_ids=list(chan_ids[chans])), dtype=np.float32)
+        for u_idx in np.unique(ci_all[on_g]):
+            sel = on_g[ci_all[on_g] == u_idx]
+            snips = tr[off_all[sel][:, None] + cols[None, :], :]                 # (n_sel, n_samp, n_act)
+            conv = np.einsum("ntc,tc->n", snips, dense[u_idx][:, chans])
+            snip_sq = np.einsum("ntc,ntc->n", snips, snips)
+            a_all[sel] = conv / tsq_u[u_idx]
+            denom = np.sqrt(tsq_u[u_idx] * snip_sq)
+            r_all[sel] = np.where(denom > 0, conv / denom, np.nan)
+    return a_all, r_all
+
+
+def per_spike_cosine(spikes, templates, recording):
+    """Per-spike cosine r = cos(snippet, ASSIGNED-unit template); the scale-invariant shape gate.
+
+    Thin wrapper over per_spike_fit (returns only r). Matcher-agnostic: run_matching's ``shape_gate_r``
+    and both carry-forward loops gate on this for wobble, circus-omp, or a residual-capture pass.
+    """
+    return per_spike_fit(spikes, templates, recording)[1]
+
+
+def _window_method_kwargs(method, templates, *, method_kwargs, wobble_factor):
+    """Per-window method_kwargs for the carry-forward loops.
+
+    circus-omp's amplitude gate is scale-invariant, so its kwargs are STATIC across windows. wobble's
+    objective is ||t||^2-scaled, so when no explicit kwargs are given its threshold is set per window
+    to ``wobble_factor * tsq_median(current bank)`` (the adaptive-||t||^2 arm). For the cosine-gate arm
+    pass a permissive ``wobble_factor`` (non-binding admit) plus ``shape_gate_r`` to run_matching.
+    """
+    if method == "wobble" and method_kwargs is None:
+        if wobble_factor is None:
+            raise ValueError("method='wobble' requires wobble_factor (or explicit method_kwargs)")
+        return wobble_method_kwargs(templates, threshold=wobble_factor * tsq_median(templates))
+    return method_kwargs
+
+
+def dedup_sorting(sorting, recording, *, cosine_min=0.95, max_shift_samples=10, coincidence_ms=0.3):
     """Merge WITHIN-tetrode near-identical units (template cosine >= cosine_min) via union-find.
+
+    Default 0.95 = the validated within-tetrode same-neuron bar: a 0.9 merge trips refractory
+    contamination in ~19% of merges (conflates distinct cells), 0.95 was the safe sweet spot (see
+    MATCHING_PURSUIT_FINDINGS). NOTE this is a WITHIN-WINDOW dedup (the seed window is ~stationary, so
+    true oversplit twins there are HIGH-cosine); cosine is a reasonable discriminator here, unlike for
+    ACROSS-TIME merges where drift drops a true duplicate's cosine (those need the temporal CCG test).
 
     Returns a merged NumpySorting (int64 ids, 'group' preserved); spike trains of merged units are
     unioned with coincident spikes (<coincidence_ms) collapsed. Geometry-free: cosine is over each
@@ -275,3 +438,126 @@ def detection_recall(ref_sorting, mp_spikes_samples, ref_unit_mask=None, *, tol_
     dprev = np.where(j > 0, ref - s[np.clip(j - 1, 0, len(s) - 1)], tol + 1)
     dnext = np.where(j < len(s), s[np.clip(j, 0, len(s) - 1)] - ref, tol + 1)
     return float(np.mean(np.minimum(dprev, dnext) <= tol))
+
+
+def windowed_carry_forward_reseed(recording, init_templates, *, window_s=1800.0, method="circus-omp",
+                                  method_kwargs=None, shape_gate_r=None, wobble_factor=None,
+                                  n_jobs=16, min_spikes_reestimate=100, ms_before=1.0, ms_after=2.0,
+                                  reseed_every_windows=12, reseed_add_cos=0.8, reseed_min_snr=5.0,
+                                  reseed_min_spikes=100, reseed_dir=None, max_windows=None):
+    """PROTOTYPE: carry-forward matching with PERIODIC RE-SEEDING (the identity-swap root-cause fix).
+
+    Like windowed_carry_forward (reestimate mode) but every ``reseed_every_windows`` windows it re-sorts
+    that window with MS5 and ADDS, as NEW tracked units, any confident cluster (snr>=reseed_min_snr,
+    n>=reseed_min_spikes) whose 4-channel template does NOT match an existing bank unit on its tetrode
+    (shift-cos < reseed_add_cos). This gives a late-appearing / ramping neuron its OWN template so it
+    claims its own spikes, instead of being captured by a same-tetrode neighbour's track (see
+    MATCHING_PURSUIT_FINDINGS "IDENTITY-SWAP"; per-window step-capping cannot fix that, this can). Also
+    tracks units that first appear after the seed window (fixes the seed-at-start limitation).
+
+    Returns (assembled NumpySorting over the full recording, counts dict {unit_id: per-window array},
+    births dict {unit_id: window_index at which a re-seeded unit was added}, births_cos dict
+    {unit_id: max 4-ch template cosine to the existing SAME-TETRODE bank AT BIRTH}). births_cos is the
+    quantity the add-cos gate thresholds on (so it is < reseed_add_cos by construction, or -1.0 when no
+    same-tetrode unit existed yet): a born unit with a LOW birth_cos is a confidently distinct neuron,
+    while one near the gate is a borderline duplicate of a neighbour (a drift-split twin risk) -- the
+    matched-in-time signal for judging whether a finer re-seed cadence is yielding real units or twins.
+    """
+    import spikeinterface.sortingcomponents.matching as _m  # noqa: F401 (ensure registered)
+    fs = recording.get_sampling_frequency()
+    total = recording.get_num_frames()
+    wlen = int(window_s * fs)
+    rec_groups = np.asarray(recording.get_property("group"))
+    chan_ids = recording.channel_ids
+    n_chan = len(chan_ids)
+    nbefore = init_templates.nbefore
+    init_ids = [int(u) for u in init_templates.unit_ids]
+    init_mask = init_templates.sparsity.mask
+    init_dense = np.asarray(init_templates.get_dense_templates(), dtype=np.float32)
+    n_samp = init_dense.shape[1]
+    cur_t = {u: init_dense[i].copy() for i, u in enumerate(init_ids)}  # uid -> (n_samp, n_chan) dense
+    ugroup = {u: int(rec_groups[np.flatnonzero(init_mask[i])[0]]) for i, u in enumerate(init_ids)}
+    next_id = max(init_ids) + 1
+
+    def build_bank():
+        ids_now = sorted(cur_t)
+        dense_now = np.stack([cur_t[u] for u in ids_now]).astype(np.float32)
+        mask_now = np.stack([(rec_groups == ugroup[u]) for u in ids_now])
+        return ids_now, templates_from_dense(dense_now, mask_now, nbefore, np.asarray(ids_now), chan_ids)
+
+    bounds = [(s, min(s + wlen, total)) for s in range(0, total, wlen)]
+    if max_windows:
+        bounds = bounds[:max_windows]  # smoke-test knob: process only the first N windows
+    nwin = len(bounds)
+    all_samples, all_labels = [], []
+    counts = {u: [] for u in cur_t}
+    births = {}
+    births_cos = {}
+    for wi, (a, b) in enumerate(bounds):
+        win = recording.frame_slice(a, b)
+        win.reset_times()
+        ids_now, templates = build_bank()
+        ids_arr = np.asarray(ids_now)
+        mk = _window_method_kwargs(method, templates, method_kwargs=method_kwargs, wobble_factor=wobble_factor)
+        _, spikes = run_matching(win, templates, method=method, method_kwargs=mk, n_jobs=n_jobs,
+                                 shape_gate_r=shape_gate_r)
+        ufield = "cluster_index" if "cluster_index" in spikes.dtype.names else "unit_index"
+        s_idx = spikes["sample_index"].astype(np.int64)
+        l_idx = spikes[ufield].astype(np.int64)
+        labels = ids_arr[l_idx]
+        all_samples.append(s_idx + a)
+        all_labels.append(labels)
+        cnt = np.bincount(l_idx, minlength=len(ids_now))
+        for k, u in enumerate(ids_now):
+            counts[u].append(int(cnt[k]))
+        present = ids_arr[cnt >= min_spikes_reestimate]
+        if present.size:
+            ws = si.NumpySorting.from_samples_and_labels([s_idx], [labels], sampling_frequency=fs,
+                                                         unit_ids=ids_arr)
+            ws.set_property("group", np.array([ugroup[u] for u in ids_now]))
+            ws = ws.select_units(present)
+            new_t, _ = build_templates_object(ws, win, with_snr=False, n_jobs=n_jobs,
+                                              ms_before=ms_before, ms_after=ms_after)
+            nd = np.asarray(new_t.get_dense_templates(), dtype=np.float32)
+            for k, u in enumerate([int(x) for x in new_t.unit_ids]):
+                cur_t[u] = nd[k]
+        if reseed_every_windows and wi > 0 and wi % reseed_every_windows == 0:
+            rdir = (pathlib.Path(reseed_dir) / f"reseed_w{wi}") if reseed_dir else None
+            if rdir is not None:
+                shutil.rmtree(rdir, ignore_errors=True)
+            rs = to_int_numpy_sorting(sort_chunk(win, rdir))
+            _, raz = build_templates_object(rs, win, with_snr=True, n_jobs=n_jobs,
+                                            ms_before=ms_before, ms_after=ms_after)
+            rsnr = raz.get_extension("quality_metrics").get_data()["snr"].to_numpy()
+            rdense = get_dense_templates_array(raz, return_in_uV=False)
+            rgrp = np.asarray(rs.get_property("group"))
+            n_added = 0
+            for j, cu in enumerate([int(x) for x in rs.unit_ids]):
+                if rsnr[j] < reseed_min_snr or len(rs.get_unit_spike_train(cu)) < reseed_min_spikes:
+                    continue
+                g = int(rgrp[j])
+                gch = np.flatnonzero(rec_groups == g)
+                ctmpl = rdense[j][:, gch]
+                bank = [cur_t[u][:, gch] for u in cur_t if ugroup[u] == g]
+                best_cos = max((cosine_from_templates(ctmpl, bb, max_shift_samples=10) for bb in bank),
+                               default=-1.0)
+                if best_cos < reseed_add_cos:  # no current same-tetrode template within add_cos -> NEW
+                    full = np.zeros((n_samp, n_chan), dtype=np.float32)
+                    full[:, gch] = rdense[j][:, gch]
+                    cur_t[next_id] = full
+                    ugroup[next_id] = g
+                    counts[next_id] = [0] * (wi + 1)
+                    births[next_id] = wi
+                    births_cos[next_id] = float(best_cos)  # at-birth max cos to bank (gate-matched twin proxy)
+                    next_id += 1
+                    n_added += 1
+            print(f"  [reseed w{wi} ({a / fs / 3600:.1f}h)] +{n_added} new units (bank now {len(cur_t)})",
+                  flush=True)
+    samples = np.concatenate(all_samples)
+    labels = np.concatenate(all_labels)
+    all_ids = sorted(cur_t)
+    assembled = si.NumpySorting.from_samples_and_labels([samples], [labels], sampling_frequency=fs,
+                                                        unit_ids=np.asarray(all_ids))
+    assembled.set_property("group", np.array([ugroup[u] for u in all_ids]))
+    counts_arr = {u: np.array(counts[u] + [0] * (nwin - len(counts[u]))) for u in all_ids}
+    return assembled, counts_arr, births, births_cos

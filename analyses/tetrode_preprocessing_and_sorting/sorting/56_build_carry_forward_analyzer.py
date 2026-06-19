@@ -21,10 +21,13 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tag", default="", help="suffix selecting a variant run (e.g. _dedup09); "
                     "reads assembled_reestimate<tag>, writes analyzer_tracks<tag>.zarr")
-    tag = ap.parse_args().tag
+    ap.add_argument("--assembled", default=None, help="explicit assembled-sorting folder name under the run "
+                    "dir (overrides assembled_reestimate<tag>; e.g. assembled_reseed_rs)")
+    args = ap.parse_args()
+    tag = args.tag
     analyzer_path = OUT / f"analyzer_tracks{tag}.zarr"
     rec = si.load(OUT / "binary")
-    sorting = si.load(OUT / f"assembled_reestimate{tag}")
+    sorting = si.load(OUT / (args.assembled or f"assembled_reestimate{tag}"))
     print(f"recording {rec.get_duration()/3600:.1f}h {rec.get_num_channels()}ch | "
           f"sorting {sorting.get_num_units()} tracked units", flush=True)
 

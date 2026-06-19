@@ -29,9 +29,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tag", default="", help="suffix selecting a variant run (e.g. _dedup09); "
                     "reads assembled_reestimate<tag>, writes identity_check<tag>.npz")
-    tag = ap.parse_args().tag
+    ap.add_argument("--assembled", default=None, help="explicit assembled-sorting folder name under the run "
+                    "dir (overrides assembled_reestimate<tag>; e.g. assembled_reseed_rs)")
+    args = ap.parse_args()
+    tag = args.tag
     rec = si.load(OUT / "binary")
-    asm = si.load(OUT / f"assembled_reestimate{tag}")
+    asm = si.load(OUT / (args.assembled or f"assembled_reestimate{tag}"))
     total = rec.get_num_frames()
     centers = np.linspace(WIN, total - WIN, 5).astype(int)  # 5 time points
     print(f"recording {total/FS/3600:.1f}h, sampling templates at {[round(c/FS/3600,1) for c in centers]} h", flush=True)

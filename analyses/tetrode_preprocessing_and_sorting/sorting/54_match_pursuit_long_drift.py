@@ -50,7 +50,20 @@ def main():
     ap.add_argument("--window-s", type=float, default=1800.0)
     ap.add_argument("--seed-window-s", type=float, default=1800.0)  # first 30 min -> seed bank
     ap.add_argument("--n-jobs", type=int, default=16)
+    ap.add_argument("--method", choices=["circus-omp", "wobble"], default="circus-omp",
+                    help="matcher. circus-omp uses amplitudes=[0.8,inf]; wobble sets its per-window "
+                    "threshold from --wobble-factor and optionally adds the --shape-gate-r cosine gate.")
+    ap.add_argument("--wobble-factor", type=float, default=None,
+                    help="wobble admit threshold = factor x median ||t||^2 of the per-window bank "
+                    "(permissive e.g. 0.45 + --shape-gate-r = cosine arm; binding ~0.55-0.70 = adaptive arm).")
+    ap.add_argument("--shape-gate-r", type=float, default=None,
+                    help="scale-invariant cosine acceptance gate: keep spikes with cos(snippet, assigned "
+                    "template) >= this. Applies to any --method.")
     ap.add_argument("--min-spikes", type=int, default=100)
+    ap.add_argument("--min-spikes-reestimate", type=int, default=None,
+                    help="template-reliability floor for per-window re-estimation; default = --min-spikes "
+                    "(tie to the seed-confidence bar: a re-estimated template needs as many spikes as the "
+                    "initial one, else carry the prior). Set explicitly to DECOUPLE when lowering --min-spikes.")
     ap.add_argument("--skip-fixed", action="store_true",
                     help="run only the reestimate pass (the deliverable; halves compute on long spans)")
     ap.add_argument("--skip-reestimate", action="store_true",
@@ -64,12 +77,19 @@ def main():
                     "template if its 4-ch shift-cosine to the current template < this -> blocks the "
                     "identity-swap capture (a track walking onto a louder same-tetrode neighbor)")
     args = ap.parse_args()
+    if args.method == "wobble" and args.wobble_factor is None:
+        ap.error("--method wobble requires --wobble-factor")
+    mk = None if args.method == "wobble" else AMP  # wobble derives its per-window threshold from --wobble-factor
+    reest_floor = args.min_spikes_reestimate if args.min_spikes_reestimate is not None else args.min_spikes
     out = ROOT / f"mp_long_s{int(args.start_s)}_d{int(args.dur_s)}"
     out.mkdir(parents=True, exist_ok=True)
 
     rec = materialize_span(out, args.start_s, args.dur_s)
     n_win = int(np.ceil(args.dur_s / args.window_s))
     print(f"span [{args.start_s:.0f},{args.start_s+args.dur_s:.0f})s  {n_win} windows of {args.window_s:.0f}s", flush=True)
+    print(f"matcher={args.method}"
+          + (f" (wobble_factor={args.wobble_factor}, shape_gate_r={args.shape_gate_r})"
+             if args.method == "wobble" else " (amplitudes=[0.8,inf])"), flush=True)
 
     # seed bank from the FIRST window's MS5 sort (confident, well-isolated units)
     seed_frames = int(args.seed_window_s * FS)
@@ -95,12 +115,17 @@ def main():
     saved = {"conf_ids": track_ids}
     if not args.skip_fixed:
         asm_fx, cnt_fx = windowed_carry_forward(rec, init_templates, window_s=args.window_s,
-                                                method_kwargs=AMP, n_jobs=args.n_jobs, reestimate=False)
+                                                method=args.method, method_kwargs=mk,
+                                                shape_gate_r=args.shape_gate_r, wobble_factor=args.wobble_factor,
+                                                n_jobs=args.n_jobs, reestimate=False)
         pw_fx, pu_fx, isi_fx = report("fixed", asm_fx, cnt_fx, track_ids)
         saved.update(counts_fixed=cnt_fx, perwin_fixed=pw_fx, perunit_fixed=pu_fx, isi_fixed=isi_fx)
     if not args.skip_reestimate:
         asm_re, cnt_re = windowed_carry_forward(rec, init_templates, window_s=args.window_s,
-                                                method_kwargs=AMP, n_jobs=args.n_jobs, reestimate=True,
+                                                method=args.method, method_kwargs=mk,
+                                                shape_gate_r=args.shape_gate_r, wobble_factor=args.wobble_factor,
+                                                n_jobs=args.n_jobs, reestimate=True,
+                                                min_spikes_reestimate=reest_floor,
                                                 reestimate_min_cos=args.reestimate_min_cos)
         pw_re, pu_re, isi_re = report("reestimate", asm_re, cnt_re, track_ids)
         saved.update(counts_reest=cnt_re, perwin_reest=pw_re, perunit_reest=pu_re, isi_reest=isi_re)

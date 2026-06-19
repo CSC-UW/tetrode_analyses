@@ -29,12 +29,18 @@ WIN_S = 1800.0
 N_TPTS = 8
 TAG = ""               # set in main() from --tag (selects the assembled_reestimate<tag> variant)
 FIG = OUT / "figures"  # recomputed in main() as figures<tag>
+ASM_NAME = None        # assembled-sorting folder override (set in main; e.g. assembled_reseed_rs)
+NPZ_NAME = None        # counts npz override (set in main; e.g. reseed_rs.npz, reseed format auto-detected)
 
 
 def npz_plots():
-    re = np.load(OUT / f"long_drift{TAG}.npz")
-    fx = np.load(OUT / f"long_drift_fixed{TAG}.npz") if (OUT / f"long_drift_fixed{TAG}.npz").exists() else None
-    pwr = re["perwin_reest"]; cnt = re["counts_reest"]
+    npz = np.load(OUT / (NPZ_NAME or f"long_drift{TAG}.npz"))
+    if "counts" in npz.files:   # re-seeding output (reseed_rs.npz): counts is (n_units, n_windows)
+        cnt = npz["counts"].T; fx = None
+        pwr = (cnt >= 20).mean(1)
+    else:
+        fx = np.load(OUT / f"long_drift_fixed{TAG}.npz") if (OUT / f"long_drift_fixed{TAG}.npz").exists() else None
+        pwr = npz["perwin_reest"]; cnt = npz["counts_reest"]
     nw = len(pwr); t_h = (np.arange(nw) + 0.5) * WIN_S / 3600.0
 
     # 1. continuity trend
@@ -42,7 +48,7 @@ def npz_plots():
     plt.plot(t_h, pwr, "-o", ms=3, label="reestimate")
     if fx is not None:
         plt.plot(t_h, fx["perwin_fixed"], "-s", ms=3, label="fixed", alpha=0.7)
-    plt.axvline((100858 - 2000) / 3600.0, color="r", ls="--", lw=1, label="discontinuity (~weld)")
+    plt.axvspan(24, 29, color="orange", alpha=0.15, label="sleep deprivation (high movement)")
     plt.xlabel("time (h)"); plt.ylabel("fraction of confident units present (>=20 spk/30min)")
     plt.title("Carry-forward continuity over 48 h"); plt.ylim(0, 1.02); plt.legend(); plt.tight_layout()
     plt.savefig(FIG / "continuity_trend.png", dpi=120); plt.close()
@@ -71,7 +77,7 @@ def npz_plots():
 
 def template_evolution():
     rec = si.load(OUT / "binary")
-    asm = si.load(OUT / f"assembled_reestimate{TAG}")
+    asm = si.load(OUT / (ASM_NAME or f"assembled_reestimate{TAG}"))
     ic = np.load(OUT / f"identity_check{TAG}.npz")
     uids, mincos = ic["uids"], ic["min_cos"]
     order = np.argsort(mincos)
@@ -118,12 +124,15 @@ def template_evolution():
 
 
 def main():
-    global TAG, FIG
+    global TAG, FIG, ASM_NAME, NPZ_NAME
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--tag", default="", help="suffix selecting a variant run (e.g. _dedup09); "
                     "reads long_drift<tag>.npz / assembled_reestimate<tag> / identity_check<tag>.npz, "
                     "writes to figures<tag>/")
-    TAG = ap.parse_args().tag
+    ap.add_argument("--assembled", default=None, help="assembled-sorting folder override (e.g. assembled_reseed_rs)")
+    ap.add_argument("--npz", default=None, help="counts npz override (e.g. reseed_rs.npz; reseed format auto-detected)")
+    args = ap.parse_args()
+    TAG = args.tag; ASM_NAME = args.assembled; NPZ_NAME = args.npz
     FIG = OUT / f"figures{TAG}"
     FIG.mkdir(parents=True, exist_ok=True)
     npz_plots()

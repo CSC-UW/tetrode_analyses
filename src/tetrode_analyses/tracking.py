@@ -485,6 +485,22 @@ def cosine_from_templates(ta, tb, *, max_shift_samples: int = 10) -> float:
     return _max_shift_cosine(np.asarray(ta), np.asarray(tb), max_shift_samples)
 
 
+def cluster_is_new(cluster_template, bank_templates, *, add_cos: float = 0.8,
+                   max_shift_samples: int = 10) -> bool:
+    """Decide whether a re-seed cluster is a NEW unit (no match in the current bank).
+
+    Used by periodic re-seeding (``_mp_common.windowed_carry_forward_reseed``): a re-sorted cluster is
+    ADDED as a new tracked unit iff its ``(T, 4)`` template's max-shift cosine to EVERY ``bank_templates``
+    entry (the existing units on the SAME tetrode, already on the same channels) is below ``add_cos``.
+    Empty bank -> always new.
+    """
+    if len(bank_templates) == 0:
+        return True
+    best = max(cosine_from_templates(cluster_template, b, max_shift_samples=max_shift_samples)
+               for b in bank_templates)
+    return best < add_cos
+
+
 def template_cosines(
     analyzer_a,
     analyzer_b,
