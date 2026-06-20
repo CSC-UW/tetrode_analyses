@@ -4,7 +4,7 @@ scope: tetrode_analyses
 status: active
 source: measurement
 created: 2026-06-12
-last_updated: 2026-06-12
+last_updated: 2026-06-20
 confidence: medium
 confirmed_by_user: not_required
 ---
@@ -27,6 +27,79 @@ each tetrode. Methods available: `nearest`, `nearest-svd`, `tdc-peeler`, `circus
 Code: `_mp_common.py` (shared helpers), scripts `51_match_pursuit_poc.py` (stage 0 fidelity +
 diagnostics), `52_match_pursuit_dedup.py` (stage 0b dedup). Outputs under
 `sortings_seed42_pcafix/track_eval/mp_poc/`.
+
+## 2026-06-19 — Assignment-purity re-score (corrects the "Pareto-dominates" reading)
+
+A reorientation review found this document's headline metrics -- median `rp_contamination`, >=N MAD
+coverage, low-amplitude retention -- are all PRECISION/RECALL proxies measured at the TETRODE or
+whole-sorting level; NONE is per-unit ASSIGNMENT PURITY (are a unit's spikes assigned to the CORRECT
+same-tetrode unit, vs merely landing on the right tetrode?). New machinery (`_assignment_eval.py`,
+`_scoreboard.py`; scripts 86-89) scores the deliverables on three SEPARATE axes -- (A) event coverage,
+(B) per-unit assignment purity, (C) identity stability. Measured (3 windows, 5/26/40 h; full re-score in
+`axis_bc_rescore.json` / `scoreboard_unified.json`):
+
+| variant | units | cov>=10 | purity (full rF) | purity (tight rA) | within-tetrode CCG-duplicate pairs |
+| --- | --- | --- | --- | --- | --- |
+| reestimate | 109 | 78.8% | 0.976 | 0.788 | 110 |
+| reseed_c12 | 98 | 80.3% | 0.974 | 0.817 | 72 |
+| dedup095 | 75 | 78.8% | 0.977 | 0.832 | 34 |
+
+Two corrections follow:
+
+1. **The "Pareto-dominates on all three axes" claim (gate bake-off, below) is on the
+   rp/coverage/low-amp frontier ONLY** -- it does NOT establish assignment correctness. Full-window
+   cosine purity is ~0.97 (about what median-rp + pooled coverage rewarded), but the discriminative
+   tight-trough purity is only 0.79-0.83, and the base sorting carries 110 within-tetrode CCG-duplicate
+   pairs (one cell split across un-merged tracks). Merging (dedup095) improves tight purity AND parsimony
+   at zero coverage cost.
+2. **The reassignment correction (script 85, below) is the HEADLINE, not a footnote**: the full-window
+   cosine MIS-ASSIGNS a substantial fraction of spikes to a same-tetrode NEIGHBOUR (54% pooled, 72-80% on
+   crowded tetrodes), which `rp_contamination` cannot see (an independent neighbour does not violate the
+   host's refractory). The dominant defect is OVERSPLIT, an axis-C MERGE problem -- competitive
+   reassignment on the oversplit sorting is mostly churn (script 88: only 7.5-15.7% of moves are to a
+   genuinely DISTINCT neighbour; the rest shuffle between oversplit twins). Operating rule: **MERGE
+   duplicate tracks first, THEN assign.**
+
+Residual-capture E2 (script 87) is now MEASURED, not hypothetical: ~33% of >=10 MAD unclaimed events are
+cleanly recoverable (cosine>=0.8 + refractory; recovered-vs-host CCG = 49 own-dropout / 42 abstain / 0
+independent-contaminant), and ~67% are no-template collisions/MUA -> the Part C MUA bucket, NOT discarded.
+See `_assignment_eval.py` + `docs/plans/` reorientation for the three-axis framework.
+
+## 2026-06-20 — Production pipeline (the three-axis deliverable)
+
+`97_production_pipeline.py` assembles the final deliverable from `assembled_reseed_c12` in four
+checkpointed stages -- CCG-guarded merge -> residual SUA capture -> per-tetrode MUA bucket -> A/B/C
+scoring -- over all 95 windows (47.2 h), in 3.21 h. **No blanket competitive reassignment** (script 88
+showed it is mostly oversplit churn on the un-merged sorting; the merge already resolves the duplicates it
+would shuffle).
+
+| variant | units | covA>=10 | covA>=12 | purity full | purity tight | CCG-dup pairs |
+| --- | --- | --- | --- | --- | --- | --- |
+| base (`reseed_c12`) | 98 | 80.3% | 87.2% | 0.972 | 0.823 | 72 |
+| `prod_sua` (merge + residual) | 71 | 86.1% | 91.7% | 0.960 | **0.876** | **23** |
+| `prod_sua+mua` (`assembled_prod`) | 87 | **96.9%** | **98.3%** | -- | -- | -- |
+
+**All three axes improve at once.** (B) tight-window purity 0.823->0.876 -- the discriminative metric
+`rp`/pooled-coverage were blind to; (C) CCG-duplicate pairs 72->23 from the merge; (A) >=10-MAD coverage
+80.3->86.1% from residual capture, reaching 96.9% once the MUA bucket claims the neural-but-unsortable
+remainder. Full-window purity dips slightly (0.972->0.960) because residual capture *adds* genuinely harder
+spikes (each unit's noisier dropout) to the units -- expected, and the tight axis (the one that
+discriminates correct assignment) is what improves.
+
+Residual capture recovered **29.4%** of the 6.79 M unclaimed >=10-MAD events (1.99 M spikes; only 1,558
+refractory-rejected), with a clean recovered-vs-host CCG verdict (**56 own-dropout / 15 abstain / 0
+independent-contaminant**) -- i.e. recovered spikes are the units' own dropout, not co-located
+cross-contamination. The MUA pass classified 29 M unclaimed >=7-MAD events as 66% MUA / 21% noise (dropped)
+/ 13% SUA-recoverable, pooled into 16 per-tetrode `is_mua=True` pseudo-units that preserve spatial
+localization without polluting the SUA set.
+
+**Deliverable:** `assembled_prod` (87 units = 71 SUA `is_mua=False` + 16 MUA `is_mua=True`); the SUA-only
+purity/identity deliverable is `assembled_prod_sua`, and `assembled_prod_merge` is the pre-residual merged
+base. Curation analyzers: `analyzer_prod.zarr` / `analyzer_prod_sua.zarr` / `analyzer_prod_merge.zarr`
+(script 98 -- group-sparse, geometry-free, `is_mua` carried through). Note: axis C is not reported for the
+`+mua` variant -- a pooled MUA unit is CCG-"duplicate" against every SUA unit on its tetrode by
+construction, so the metric is meaningless there; the deliverable's identity number is `prod_sua`'s 23.
+Registered as `tetrode_analyses.mp_production_sorting` in `docs/artifacts/registry.yaml`.
 
 ## Stage 0 — fidelity PoC (3 min drift-stable span, [36000,36180) s)
 
@@ -616,7 +689,10 @@ Generalization = spread of (rp, >=10 cov) across the 6 windows at a single fixed
 
 **Result (decisive):** ONE fixed cosine value (r>=0.60) gives median rp_contamination = 0.000 in EVERY window
 (spread 0.000 -- recalibration-free, the scale-invariance claim confirmed) while holding >=10 MAD coverage
-92.5-97.4% and low-amp retention 45-69%. It **Pareto-dominates both alternatives on all three axes at once**:
+92.5-97.4% and low-amp retention 45-69%. It **Pareto-dominates both alternatives on all three axes at once**
+[CORRECTED 2026-06-19, see top banner: these "three axes" are rp / coverage / low-amp retention -- all
+precision-recall PROXIES, none per-unit ASSIGNMENT PURITY; tight-trough purity of the deliverable is only
+0.79-0.83 and the gate is delete-only, so this does NOT establish assignment correctness]:
 vs circus (rp 0.21-0.42 at comparable coverage) and vs the adaptive-||t||^2 threshold, whose rp swings
 window-to-window at any fixed factor (spread 0.16-0.23) and only nears clean at 0.80x -- where rp is still
 0.056-0.211 AND coverage drops to 78-89% AND low-amp retention collapses to 24-47% (the documented amplitude-gate

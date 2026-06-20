@@ -71,7 +71,11 @@ def _within_tol(query_s, query_g, ref_by_tet, tol):
 
 
 def coverage_by_band(sorting, peak_s, peak_g, amp_mad, *, tol=None):
-    """({band: %claimed, '>=12_pooled': %, 'overall': %}, claimed_mask) for a sorting vs detected peaks."""
+    """({band: %claimed, '>=12_pooled': %, 'overall': %}, claimed_mask) for a sorting vs detected peaks.
+
+    AXIS-A (event coverage) only, and POOLED PER TETRODE (see _by_tet): an event is "claimed" if ANY unit
+    on its tetrode fired within tol, NOT if the CORRECT unit did. Necessary but NOT sufficient -- blind to
+    per-unit assignment purity (axis B). For that use _assignment_eval (per_unit_best_match_purity)."""
     tol = int(TOL_MS * 1e-3 * FS) if tol is None else tol
     claimed = _within_tol(peak_s, peak_g, _by_tet(sorting), tol)
     res = {}
@@ -139,9 +143,12 @@ def quality_df(sorting, recording, *, n_jobs=16, with_amplitude_cutoff=False):
 
 
 def precision_summary(sorting, qm_df, *, min_spk=50):
-    """Precision metrics. PRIMARY match metric = median rp_contamination over units with >=min_spk spikes
-    (RATE-based inclusion only, NOT gated on contamination -> not circular with the tiers). Also reports
-    per-tier well-isolated unit counts (secondary precision signal)."""
+    """Precision PROXY (rp_contamination), NOT assignment purity. Median rp_contamination over units with
+    >=min_spk spikes (RATE-based inclusion only, NOT gated on contamination -> not circular with the tiers);
+    also per-tier well-isolated unit counts. rp_contamination is BLIND to cross-unit mis-assignment: an
+    independently-firing same-tetrode neighbour wrongly assigned into a unit raises no refractory violation,
+    so rp~0 is not evidence of correct assignment. For per-unit assignment purity (axis B) use
+    _assignment_eval (per_unit_best_match_purity + the CCG arbiter)."""
     counts = {int(u): int(sorting.get_unit_spike_train(u).size) for u in sorting.unit_ids}
     rp = np.asarray(qm_df["rp_contamination"], dtype=float)
     ids = list(qm_df.index)

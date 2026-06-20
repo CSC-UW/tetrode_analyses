@@ -32,6 +32,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import spikeinterface as si
 
+from _assignment_eval import MAXLAG_MS, REFR_MS, adjudicate, ccg_lags, co_restrict, verdict_of
 from _mp_common import build_templates_object, materialize_span
 from tetrode_analyses.tracking import cosine_from_templates
 
@@ -41,12 +42,8 @@ FS = 30000.0
 START_S, DUR_S = 2000.0, 170000.0
 WIN_S = 1800.0
 CADENCES = [12, 6, 3]
-
-REFR_MS = 1.5          # refractory half-window for the central CCG bin
-FLANK_MS = (5.0, 25.0)  # flank lag band
-MAXLAG_MS = 25.0
-DIP, FILL = 0.30, 0.70  # ratio verdict thresholds
-MIN_CO_WIN, MIN_FLANK = 2, 30  # need this much co-activity for refractory to decide
+# CCG arbiter (ccg_lags/adjudicate/verdict_of/co_restrict + REFR_MS/MAXLAG_MS) now lives in
+# _assignment_eval (axis-B purity reuses the same temporal test); imported above. Defaults are identical.
 
 
 def fullspan_t4(asm, rec, *, n_jobs=16, min_spikes_template=50):
@@ -64,43 +61,6 @@ def fullspan_t4(asm, rec, *, n_jobs=16, min_spikes_template=50):
         t4[u] = dense[i][:, gch]
         ug[u] = gmap[u]
     return t4, ug
-
-
-def ccg_lags(tb, tu, maxlag):
-    """All (tu - tb) lags within +/-maxlag frames, for sorted frame arrays tb, tu."""
-    if len(tb) == 0 or len(tu) == 0:
-        return np.empty(0)
-    lo = np.searchsorted(tu, tb - maxlag)
-    hi = np.searchsorted(tu, tb + maxlag)
-    return np.concatenate([tu[a:b] - s for s, a, b in zip(tb, lo, hi) if b > a]) if np.any(hi > lo) \
-        else np.empty(0)
-
-
-def adjudicate(tb, tu):
-    """Cross-correlogram central/flank ratio + verdict for two co-restricted frame trains."""
-    maxlag = int(MAXLAG_MS * 1e-3 * FS)
-    lags = ccg_lags(np.sort(tb), np.sort(tu), maxlag)
-    al = np.abs(lags) / FS * 1000.0
-    central = int(np.sum(al <= REFR_MS))
-    flank = int(np.sum((al >= FLANK_MS[0]) & (al <= FLANK_MS[1])))
-    cw, fw = 2 * REFR_MS, 2 * (FLANK_MS[1] - FLANK_MS[0])
-    if flank < MIN_FLANK:
-        return np.nan, central, flank
-    return (central / cw) / (flank / fw), central, flank
-
-
-def verdict_of(ratio, n_co):
-    if n_co < MIN_CO_WIN or not np.isfinite(ratio):
-        return "SEGREGATED"
-    if ratio < DIP:
-        return "duplicate"
-    if ratio > FILL:
-        return "distinct"
-    return "ambiguous"
-
-
-def co_restrict(train, co_wins, wlen):
-    return train[np.isin(train // wlen, co_wins)] if len(train) else train
 
 
 def run_cadence(N, rec, n_jobs=16):

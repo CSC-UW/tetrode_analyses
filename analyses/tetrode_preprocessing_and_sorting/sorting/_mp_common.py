@@ -19,7 +19,7 @@ import shutil
 
 import numpy as np
 import spikeinterface as si
-from spikeinterface.core import ChannelSparsity, Templates
+from spikeinterface.core import ChannelSparsity, Templates, get_noise_levels
 from spikeinterface.core.template_tools import get_dense_templates_array
 from spikeinterface.sortingcomponents.matching import find_spikes_from_templates
 
@@ -352,6 +352,124 @@ def per_spike_cosine(spikes, templates, recording):
     and both carry-forward loops gate on this for wobble, circus-omp, or a residual-capture pass.
     """
     return per_spike_fit(spikes, templates, recording)[1]
+
+
+# ---- competitive assignment (cosine to EVERY same-tetrode template) ----------------------------
+# per_spike_fit/per_spike_cosine score a spike only against its ASSIGNED template, so they can gate
+# (delete) but never REASSIGN. all_template_cosines scores every same-tetrode template, returning the
+# best-matching one -- the primitive both the assignment-purity scorer (_assignment_eval) and
+# competitive_reassign need. Promoted from 85_tight_cosine_reassignment.py (was a one-off diagnostic).
+
+ASYM_MS = (-0.3, 0.8)  # tight asymmetric trough window (rA): captures the trough where co-tetrode
+TIGHT_SHIFT = 2        # templates differ most; +/-TIGHT_SHIFT-sample shift tolerance absorbs jitter.
+
+
+def asym_window_bounds(nbefore, *, asym_ms=ASYM_MS):
+    """(a, b) sample bounds of the tight asymmetric trough window around ``nbefore``."""
+    a = nbefore + int(round(asym_ms[0] * FS / 1000.0))
+    b = nbefore + int(round(asym_ms[1] * FS / 1000.0))
+    return a, b
+
+
+def all_template_cosines(win, bank, spikes, a, b, s_max, *, peak_half=15):
+    """Per spike: (rF_u, rA_u to ASSIGNED unit; rF_best/arg, rA_best/arg over ALL same-tetrode templates; mad).
+
+    rF = full-window cosine; rA = asym tight window [a:b] with +/-s_max shift-tolerance (max over shifts).
+    'arg' are GLOBAL template indices (positions in ``bank.unit_ids`` == cluster_index space). Mirrors
+    per_spike_fit's per-tetrode batching but scores cosines to every co-tetrode template, so the assigned
+    unit (rF_u/rA_u) can be compared to the best competitor (rF_best/rA_best). Use asym_window_bounds for a,b.
+    """
+    rec_groups = np.asarray(win.get_property("group"))
+    chan_ids = np.asarray(win.channel_ids)
+    ug = _unit_groups_from_mask(bank.sparsity.mask, rec_groups)
+    dense = np.asarray(bank.get_dense_templates(), dtype=np.float32)
+    nbefore, n_samp = bank.nbefore, dense.shape[1]
+    nfr = win.get_num_frames()
+    noise = get_noise_levels(win, return_in_uV=False)
+    uf = "cluster_index" if "cluster_index" in spikes.dtype.names else "unit_index"
+    s = spikes["sample_index"].astype(np.int64)
+    ci = spikes[uf].astype(np.int64)
+    g_all = ug[ci]
+    off = s - nbefore
+    valid = (off - s_max >= 0) & (off + n_samp + s_max <= nfr)
+    ext_cols = np.arange(-s_max, n_samp + s_max)
+    n = s.size
+    rF_u = np.full(n, np.nan)
+    rA_u = np.full(n, np.nan)
+    rF_best = np.full(n, np.nan)
+    rA_best = np.full(n, np.nan)
+    rF_arg = np.full(n, -1, np.int64)
+    rA_arg = np.full(n, -1, np.int64)
+    mad = np.full(n, np.nan)
+    for g in np.unique(g_all):
+        on_g = np.flatnonzero((g_all == g) & valid)
+        if on_g.size == 0:
+            continue
+        units_g = np.flatnonzero(ug == g)                  # global template indices on this tetrode
+        chans = np.flatnonzero(rec_groups == g)
+        nz = noise[chans]
+        tr = np.asarray(win.get_traces(channel_ids=list(chan_ids[chans])), dtype=np.float32)
+        ext = tr[off[on_g][:, None] + ext_cols[None, :], :]            # (m, n_samp+2*s_max, 4)
+        Tf = dense[units_g][:, :, chans]                               # (nu, n_samp, 4)
+        Ta = dense[units_g][:, a:b, chans]                             # (nu, W, 4)
+        tsqF = np.einsum("jtc,jtc->j", Tf, Tf)
+        tsqA = np.einsum("jwc,jwc->j", Ta, Ta)
+        sF = ext[:, s_max:s_max + n_samp, :]
+        ssqF = np.einsum("mtc,mtc->m", sF, sF)
+        rF = np.einsum("mtc,jtc->mj", sF, Tf) / np.sqrt(ssqF[:, None] * tsqF[None, :])   # (m, nu)
+        rA = np.full((on_g.size, units_g.size), -np.inf)
+        for k in range(-s_max, s_max + 1):
+            sk = ext[:, s_max + a + k:s_max + b + k, :]
+            ssqk = np.einsum("mwc,mwc->m", sk, sk)
+            rk = np.einsum("mwc,jwc->mj", sk, Ta) / np.sqrt(ssqk[:, None] * tsqA[None, :])
+            rA = np.maximum(rA, rk)
+        local_u = np.searchsorted(units_g, ci[on_g])                   # column of the assigned unit
+        rows = np.arange(on_g.size)
+        rF_u[on_g] = rF[rows, local_u]
+        rA_u[on_g] = rA[rows, local_u]
+        fb = np.argmax(rF, axis=1)
+        ab = np.argmax(rA, axis=1)
+        rF_best[on_g] = rF[rows, fb]
+        rA_best[on_g] = rA[rows, ab]
+        rF_arg[on_g] = units_g[fb]
+        rA_arg[on_g] = units_g[ab]
+        peak = sF[:, nbefore - peak_half:nbefore + peak_half, :]
+        mad[on_g] = np.max(np.abs(peak) / nz[None, None, :], axis=(1, 2))
+    return dict(rF_u=rF_u, rA_u=rA_u, rF_best=rF_best, rA_best=rA_best, rF_arg=rF_arg, rA_arg=rA_arg, mad=mad)
+
+
+def competitive_reassign(win, bank, spikes, *, margin=0.0, use_tight=False, s_max=TIGHT_SHIFT,
+                         cosines=None):
+    """Re-label each matched spike to its best-matching SAME-TETRODE template (competitive assignment).
+
+    The alternative to run_matching's delete-only ``shape_gate_r``: instead of DROPPING a spike whose
+    cosine to its assigned template is low, OFFER it to every same-tetrode template and re-label it to the
+    best match when that beats the assigned unit by >= ``margin``. ``use_tight`` scores the asym trough
+    window (rA, sharper unit discrimination) rather than the full window (rF). Out-of-bounds snippets
+    (NaN cosine) keep their original label. Pass precomputed ``cosines`` (all_template_cosines output for
+    this spikes/bank) to skip recompute; else win+bank are used. Reuses all_template_cosines -> ZERO new
+    matching compute.
+
+    Returns (new spikes array with cluster_index/unit_index updated; sample_index unchanged, boolean mask
+    of reassigned spikes). Post-hoc on any matcher output -- measure axis-B purity before vs after on the
+    SAME spikes, and adjudicate each reassignment's neighbour with the CCG test (_assignment_eval) before
+    folding it into the carry-forward loops.
+    """
+    if cosines is not None:
+        cos = cosines
+    else:
+        a, b = asym_window_bounds(bank.nbefore)
+        cos = all_template_cosines(win, bank, spikes, a, b, s_max)
+    arg = cos["rA_arg" if use_tight else "rF_arg"]
+    best = cos["rA_best" if use_tight else "rF_best"]
+    u = cos["rA_u" if use_tight else "rF_u"]
+    out = spikes.copy()
+    uf = "cluster_index" if "cluster_index" in spikes.dtype.names else "unit_index"
+    ci = out[uf].astype(np.int64)
+    reassign = (arg >= 0) & np.isfinite(best) & np.isfinite(u) & (arg != ci) & (best - u >= margin)
+    ci[reassign] = arg[reassign]
+    out[uf] = ci
+    return out, reassign
 
 
 def _window_method_kwargs(method, templates, *, method_kwargs, wobble_factor):

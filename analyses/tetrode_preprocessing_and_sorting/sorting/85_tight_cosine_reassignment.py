@@ -30,10 +30,10 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from spikeinterface.core import get_noise_levels
 
-from _mp_common import (_unit_groups_from_mask, build_templates_object, materialize_span,
-                        run_matching, tsq_median, wobble_method_kwargs)
+from _mp_common import (_unit_groups_from_mask, all_template_cosines, asym_window_bounds,
+                        build_templates_object, materialize_span, run_matching, tsq_median,
+                        wobble_method_kwargs)
 from _wobble_eval import detect_window_peaks, score_kept_spikes
 from tetrode_analyses.tracking import sort_chunk, to_int_numpy_sorting
 
@@ -44,74 +44,8 @@ FS = 30000.0
 START_S, DUR_S = 2000.0, 170000.0
 WIN_S = 1800.0
 N_JOBS = 16
-ASYM_MS = (-0.3, 0.8)
 S_MAX = 2
 R_GRID = np.round(np.arange(0.40, 0.801, 0.025), 3)
-PEAK_HALF = 15
-
-
-def all_template_cosines(win, bank, spikes, a, b, s_max):
-    """Per spike: (rF_u, rA_u to ASSIGNED unit; rF_best/arg, rA_best/arg over ALL same-tetrode templates; mad).
-
-    rF = full-window cosine; rA = asym tight window with +/-s_max shift-tolerance (max over shifts). 'arg' are
-    GLOBAL template indices. Mirrors per_spike_fit's per-tetrode batching; cosines to every co-tetrode template.
-    """
-    rec_groups = np.asarray(win.get_property("group"))
-    chan_ids = np.asarray(win.channel_ids)
-    ug = _unit_groups_from_mask(bank.sparsity.mask, rec_groups)
-    dense = np.asarray(bank.get_dense_templates(), dtype=np.float32)
-    nbefore, n_samp = bank.nbefore, dense.shape[1]
-    nfr = win.get_num_frames()
-    noise = get_noise_levels(win, return_in_uV=False)
-    s = spikes["sample_index"].astype(np.int64)
-    ci = spikes["cluster_index"].astype(np.int64)
-    g_all = ug[ci]
-    off = s - nbefore
-    valid = (off - s_max >= 0) & (off + n_samp + s_max <= nfr)
-    ext_cols = np.arange(-s_max, n_samp + s_max)
-    n = s.size
-    rF_u = np.full(n, np.nan)
-    rA_u = np.full(n, np.nan)
-    rF_best = np.full(n, np.nan)
-    rA_best = np.full(n, np.nan)
-    rF_arg = np.full(n, -1, np.int64)
-    rA_arg = np.full(n, -1, np.int64)
-    mad = np.full(n, np.nan)
-    for g in np.unique(g_all):
-        on_g = np.flatnonzero((g_all == g) & valid)
-        if on_g.size == 0:
-            continue
-        units_g = np.flatnonzero(ug == g)                  # global template indices on this tetrode
-        chans = np.flatnonzero(rec_groups == g)
-        nz = noise[chans]
-        tr = np.asarray(win.get_traces(channel_ids=list(chan_ids[chans])), dtype=np.float32)
-        ext = tr[off[on_g][:, None] + ext_cols[None, :], :]            # (m, n_samp+2*s_max, 4)
-        Tf = dense[units_g][:, :, chans]                               # (nu, n_samp, 4)
-        Ta = dense[units_g][:, a:b, chans]                             # (nu, W, 4)
-        tsqF = np.einsum("jtc,jtc->j", Tf, Tf)
-        tsqA = np.einsum("jwc,jwc->j", Ta, Ta)
-        sF = ext[:, s_max:s_max + n_samp, :]
-        ssqF = np.einsum("mtc,mtc->m", sF, sF)
-        rF = np.einsum("mtc,jtc->mj", sF, Tf) / np.sqrt(ssqF[:, None] * tsqF[None, :])   # (m, nu)
-        rA = np.full((on_g.size, units_g.size), -np.inf)
-        for k in range(-s_max, s_max + 1):
-            sk = ext[:, s_max + a + k:s_max + b + k, :]
-            ssqk = np.einsum("mwc,mwc->m", sk, sk)
-            rk = np.einsum("mwc,jwc->mj", sk, Ta) / np.sqrt(ssqk[:, None] * tsqA[None, :])
-            rA = np.maximum(rA, rk)
-        local_u = np.searchsorted(units_g, ci[on_g])                   # column of the assigned unit
-        rows = np.arange(on_g.size)
-        rF_u[on_g] = rF[rows, local_u]
-        rA_u[on_g] = rA[rows, local_u]
-        fb = np.argmax(rF, axis=1)
-        ab = np.argmax(rA, axis=1)
-        rF_best[on_g] = rF[rows, fb]
-        rA_best[on_g] = rA[rows, ab]
-        rF_arg[on_g] = units_g[fb]
-        rA_arg[on_g] = units_g[ab]
-        peak = sF[:, nbefore - PEAK_HALF:nbefore + PEAK_HALF, :]
-        mad[on_g] = np.max(np.abs(peak) / nz[None, None, :], axis=(1, 2))
-    return dict(rF_u=rF_u, rA_u=rA_u, rF_best=rF_best, rA_best=rA_best, rF_arg=rF_arg, rA_arg=rA_arg, mad=mad)
 
 
 def matched_rstar(r, s, ci, ug, peak_s, peak_g, amp_mad, peak_by_tet, nfr, target):
@@ -149,8 +83,7 @@ def main():
     dense = np.asarray(bank.get_dense_templates(), dtype=np.float32)
     nbefore = bank.nbefore
     ids = np.asarray(bank.unit_ids)
-    a = nbefore + int(round(ASYM_MS[0] * FS / 1000.0))
-    b = nbefore + int(round(ASYM_MS[1] * FS / 1000.0))
+    a, b = asym_window_bounds(nbefore)
     units_per_tet = {int(g): int((ug == g).sum()) for g in np.unique(ug)}
     peak_s, peak_g, amp_mad = detect_window_peaks(win, n_jobs=N_JOBS)
     peak_by_tet = {int(gg): np.sort(peak_s[peak_g == gg]) for gg in np.unique(peak_g)}

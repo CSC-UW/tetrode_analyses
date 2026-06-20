@@ -4,7 +4,7 @@ scope: tetrode_analyses
 status: active
 source: inference
 created: 2026-06-17
-last_updated: 2026-06-17
+last_updated: 2026-06-19
 confidence: medium
 confirmed_by_user: not_required
 ---
@@ -59,6 +59,16 @@ Key mechanism for Part A. circus-omp gates on the fitted amplitude `a` with `amp
 but smaller-amplitude** spike (e.g. a big unit's 10.5 MAD spike against its 15 MAD average template:
 `a≈0.7`, cos≈0.95) is **rejected by the amplitude gate but would pass a shape/cosine test**. That is exactly
 the recoverable dropout — and a dropped spike, being unsubtracted, sits in the residual at full amplitude.
+
+> **MEASURED 2026-06-19 (E2 DONE, script `87_sua_residual_capture_e2.py`).** The mechanism is SUPPORTED but
+> MODEST, not the dominant story. Of 358 k >=10 MAD unclaimed events (reseed bank, 5 windows): **~33%
+> recovered** (cosine>=0.8 + refractory pass), **~67% no-template** (cos<0.8 to the best same-tetrode
+> template = collision / MUA, which flow to Part C, NOT discarded). Recovered-vs-host CCG: 49 own-dropout
+> (refractory dip = clean recovery) / 42 abstain / **0 independent-contaminant** -> no detectable cross-unit
+> leakage. Caveat: rp_contamination is SATURATED at 1.0 for many affected units (they are already oversplit
+> twins), so the CCG-duplicate verdict, NOT rp-delta, is the load-bearing purity check. Recovery lands mostly
+> in already-oversplit units, so Part A is entangled with the MERGE-FIRST step (see MATCHING_PURSUIT_FINDINGS
+> 2026-06-19 banner): merge duplicate tracks first, then recover.
 
 ## 3. Design principles
 
@@ -208,10 +218,12 @@ Per-tetrode (not one global) preserves spatial/anatomical localization.
   chosen `theta`, and whether BombCell's NP-tuned defaults transfer to tetrodes (recalibrate narrowly on
   known-good SUA if not, per the threshold-derivation policy). If neither signal separates cleanly, the
   shape-only MUA approach is not viable as specified — reconsider before building.
-- **E2 — SUA residual-capture prototype (cheap; gates Part A).** On the saved unclaimed >=10 MAD peaks
-  (`spike_coverage.npz`), apply best-template cosine + refractory check. Deliver: how many are cleanly
-  recovered (same-unit), how many left as collision/cross-unit, the >=10 MAD coverage gain, and the
-  refractory-contamination cost on the affected units. Decides whether Part A is worth wiring in.
+- **E2 — SUA residual-capture prototype — DONE (script `87_sua_residual_capture_e2.py`, 2026-06-19).** On
+  the saved unclaimed >=10 MAD peaks (`spike_coverage.npz`), best same-tetrode template cosine PROPOSES +
+  refractory DISPOSES, recovered-vs-host CCG validates. Result: ~33% recovered, ~67% no-template (-> Part
+  C), 0 CCG-detected cross-unit contaminants (rp saturated for oversplit hosts -> CCG is the cost metric).
+  Verdict: Part A is worth wiring in, but AFTER the merge-first step (recovery lands in oversplit units).
+  Reuses `_assignment_eval.best_template_for_events` / `ccg_verdict_pair`. Outputs `residual_capture_e2.*`.
 - **E3 — `wobble` vs `circus-omp` head-to-head — DONE (scripts 69-72, 2026-06-17).** On the task-1 windows
   (5/26/40 h), scored both on >=12 MAD coverage at matched precision (rp_contamination), MS5 agreement, and
   over-detection (spurious fraction). Result: wobble is NOT a win (loses MS5 agreement all 3 windows,
@@ -229,14 +241,16 @@ residual.
 
 ## 9. Deliverables / outputs
 
-- Scripts (suggested numbering; 69-75 now USED -- 69-72 the E3 wobble head-to-head, 73-75 the intrinsic
-  threshold-selection study -- so next free is 76): `76_neural_noise_calibration.py` (E1),
-  `77_sua_residual_capture.py` (E2 + production), `78_mua_pass.py` (E4). E3 was realized as
-  `69_wobble_smoke.py`, `70_wobble_threshold_calib.py`, `71_wobble_vs_circus.py`,
-  `72_wobble_spurious_examples.py`; the threshold-selection follow-up as `73_wobble_threshold_intrinsic.py`,
-  `74_wobble_normgate_prototype.py`, `75_circus_amplitude_knee.py` (+ shared `_wobble_eval.py`). Key finding
-  for Part A: a per-unit COSINE/shape gate (r>=0.6) drives rp_contamination to ~0 at 86-99% coverage where the
-  amplitude gate cannot -- i.e. "cosine proposes, refractory disposes" is the right acceptance criterion.
+- Scripts (ACTUAL numbering, updated 2026-06-19): E3 was realized as `69_wobble_smoke.py`,
+  `70_wobble_threshold_calib.py`, `71_wobble_vs_circus.py`, `72_wobble_spurious_examples.py`; the
+  threshold-selection follow-up as `73_wobble_threshold_intrinsic.py`, `74_wobble_normgate_prototype.py`,
+  `75_circus_amplitude_knee.py` (+ shared `_wobble_eval.py`). The assignment-purity reorientation added
+  `_assignment_eval.py` / `_scoreboard.py` and scripts `86_rescore_axis_b_c.py`, `87_sua_residual_capture_e2.py`
+  (= E2), `88_competitive_reassign.py`, `89_scoreboard.py`. STILL TO BUILD: E1 neural/noise calibration and
+  E4 MUA pass as the next free numbers (90/91), plus the merge-first candidate build. Key finding for Part A:
+  a per-unit COSINE/shape gate (r>=0.6) drives rp_contamination to ~0 at 86-99% coverage where the amplitude
+  gate cannot -- "cosine proposes, refractory disposes" -- BUT rp~0 is precision-proxy, not assignment purity
+  (see MATCHING_PURSUIT_FINDINGS 2026-06-19): the gate cannot fix cross-unit/oversplit mis-assignment.
 - Recovered SUA spikes merged into the assembled MP sorting; per-tetrode MUA added with an `is_mua` unit
   property. Outputs under `track_eval/mp_long_s2000_d170000/`.
 - Findings -> `MATCHING_PURSUIT_FINDINGS.md`; update this plan's front-matter `status` as parts land.
