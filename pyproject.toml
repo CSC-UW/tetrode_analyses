@@ -52,8 +52,8 @@ analysis = [
 # enables curation of long (>2**31-sample) recordings (commit e1b5e7a, PR #263,
 # not yet in any PyPI release) -- plus local sigui CLI `--recording` fixes (correct
 # args.recording_base_folder attribute + fail-loud exception handling). Direct git
-# URL per the workspace dual-use install pattern; only gfys_workspace overrides it
-# to a local editable path.
+# URL per the workspace dual-use install pattern; gfys_workspace pins the same
+# fork via override-dependencies (currently the dev branch).
 curation = [
     "spikeinterface-gui[desktop,web] @ git+https://github.com/grahamfindlay/spikeinterface-gui.git@dev",
 ]
@@ -66,7 +66,7 @@ curation = [
 # transitively; base tetrode_analyses supplies the rest (and its viz palette via
 # tetrode_analyses.viz, which imports no SI). loupe is a sibling workspace
 # package, declared as a direct git URL per the workspace dual-use install
-# pattern (only gfys_workspace overrides it to the local editable ../loupe path).
+# pattern (gfys_workspace pins the same CSC-UW/loupe@main via override-dependencies).
 viz = [
     "loupe @ git+https://github.com/CSC-UW/loupe.git@main",
 ]
