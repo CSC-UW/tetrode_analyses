@@ -1,12 +1,6 @@
 ---
 title: Residual-capture plan — recover SUA dropout + extract MUA from the matching-pursuit residual
-scope: tetrode_analyses
-status: active
-source: inference
-created: 2026-06-17
-last_updated: 2026-06-19
-confidence: medium
-confirmed_by_user: not_required
+updated: 2026-06-19
 ---
 
 # Residual-capture plan

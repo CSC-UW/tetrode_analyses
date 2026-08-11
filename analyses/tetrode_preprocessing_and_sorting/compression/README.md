@@ -1,11 +1,6 @@
 ---
 title: Chunking & compression scheme for tetrode spike sorting
-scope: tetrode_analyses
-status: active
-source: measurement
-created: 2026-05-30
-last_updated: 2026-06-10
-confidence: high
+updated: 2026-06-10
 confirmed_by_user: true
 ---
 

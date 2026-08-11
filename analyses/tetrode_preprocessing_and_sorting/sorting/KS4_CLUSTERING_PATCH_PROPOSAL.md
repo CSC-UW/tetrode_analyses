@@ -1,12 +1,7 @@
 ---
 title: Proposal — bound Kilosort4 clustering GPU memory so it can sort long (48 h) recordings
-scope: tetrode_analyses
+updated: 2026-06-12
 status: hypothesis
-source: code_inspection
-created: 2026-06-12
-last_updated: 2026-06-12
-confidence: high
-confirmed_by_user: not_required
 ---
 
 # Brief for a planning agent: cap Kilosort4's clustering GPU memory

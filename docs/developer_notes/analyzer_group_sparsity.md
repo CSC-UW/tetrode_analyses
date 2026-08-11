@@ -1,8 +1,6 @@
 ---
 title: Tetrode SortingAnalyzer sparsity — use by_property="group", not radius
-status: active
 updated: 2026-07-26
-confirmed_by_user: not_required
 ---
 
 # Tetrode SortingAnalyzer sparsity

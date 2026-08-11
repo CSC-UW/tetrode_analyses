@@ -1,11 +1,7 @@
 ---
 title: Open methodological concerns to revisit (tetrode MP sorting)
-scope: tetrode_analyses
+updated: 2026-06-20
 status: needs_verification
-source: user_explanation
-created: 2026-06-20
-last_updated: 2026-06-20
-confidence: medium
 confirmed_by_user: true
 ---
 

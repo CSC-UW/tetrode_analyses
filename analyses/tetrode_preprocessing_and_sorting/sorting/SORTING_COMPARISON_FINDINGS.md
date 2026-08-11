@@ -1,12 +1,6 @@
 ---
 title: MountainSort5 sorting + lossless-vs-lossy comparison (2026-05-27_09-07-52)
-scope: tetrode_analyses
-status: active
-source: measurement
-created: 2026-05-31
-last_updated: 2026-06-03
-confidence: medium
-confirmed_by_user: not_required
+updated: 2026-06-03
 ---
 
 # Sorting both compression stores + comparison

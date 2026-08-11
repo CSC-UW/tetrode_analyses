@@ -1,12 +1,6 @@
 ---
 title: Root cause of frame_slice + run_sorter_by_property memory blow-up (SI time-vector reload)
-scope: tetrode_analyses / spikeinterface
-status: active
-source: measurement
-created: 2026-06-07
-last_updated: 2026-06-07
-confidence: high
-confirmed_by_user: not_required
+updated: 2026-06-07
 ---
 
 # `frame_slice` + `run_sorter_by_property` memory blow-up — root cause + fix

@@ -1,12 +1,6 @@
 ---
 title: Matching-pursuit (circus-omp) for 48h tetrode unit tracking
-scope: tetrode_analyses
-status: active
-source: measurement
-created: 2026-06-12
-last_updated: 2026-06-20
-confidence: medium
-confirmed_by_user: not_required
+updated: 2026-06-20
 ---
 
 # Matching pursuit for tetrode tracking

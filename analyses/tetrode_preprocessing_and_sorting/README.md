@@ -1,12 +1,6 @@
 ---
 title: Tetrode preprocessing + sorting study (session 2026-05-27_09-07-52)
-scope: tetrode_analyses
-status: active
-source: code_inspection
-created: 2026-06-10
-last_updated: 2026-06-10
-confidence: high
-confirmed_by_user: not_required
+updated: 2026-06-10
 ---
 
 # Tetrode preprocessing + sorting

@@ -1,12 +1,6 @@
 ---
 title: Cross-chunk unit tracking for long tetrode recordings
-scope: tetrode_analyses
-status: active
-source: code_inspection
-created: 2026-06-11
-last_updated: 2026-06-11
-confidence: high
-confirmed_by_user: not_required
+updated: 2026-06-11
 ---
 
 # Cross-chunk unit tracking for long tetrode recordings

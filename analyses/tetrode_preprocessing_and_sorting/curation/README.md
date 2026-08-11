@@ -1,12 +1,6 @@
 ---
 title: Spike-sorting curation (server + local) for session 2026-05-27_09-07-52
-scope: tetrode_analyses
-status: active
-source: code_inspection
-created: 2026-06-11
-last_updated: 2026-06-12
-confidence: high
-confirmed_by_user: not_required
+updated: 2026-06-12
 ---
 
 # Curation

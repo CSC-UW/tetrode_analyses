@@ -1,12 +1,6 @@
 ---
 title: MountainSort5 parameter defaults — vanilla ms5 vs NP example vs SpikeInterface wrapper
-scope: tetrode_analyses
-status: active
-source: code_inspection
-created: 2026-06-02
-last_updated: 2026-06-02
-confidence: high
-confirmed_by_user: not_required
+updated: 2026-06-02
 ---
 
 # MountainSort5 parameter comparison

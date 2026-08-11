@@ -1,12 +1,7 @@
 ---
 title: ~400 Hz comb and ~9.87 Hz transient in Open Ephys tetrode recordings — noise diagnosis (LEDs + clock-lock ruled out; fixed external ~400 Hz source)
-scope: tetrode_analyses
+updated: 2026-05-30
 status: needs_verification
-source: inference
-created: 2026-05-30
-last_updated: 2026-05-30
-confidence: medium
-confirmed_by_user: not_required
 ---
 
 # Acquisition-noise diagnosis: ~400 Hz comb + ~9.87 Hz transient

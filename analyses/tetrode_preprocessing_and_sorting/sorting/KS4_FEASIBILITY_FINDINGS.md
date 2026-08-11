@@ -1,12 +1,6 @@
 ---
 title: Kilosort4 feasibility for the full-48h tetrode sort — the GPU clustering memory wall
-scope: tetrode_analyses
-status: active
-source: measurement
-created: 2026-06-12
-last_updated: 2026-06-12
-confidence: high
-confirmed_by_user: not_required
+updated: 2026-06-12
 ---
 
 # Kilosort4 on the full 48 h tetrode session: feasibility and the GPU clustering wall
