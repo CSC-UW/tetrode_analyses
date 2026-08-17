@@ -226,7 +226,7 @@ Per-tetrode (not one global) preserves spatial/anatomical localization.
 - **E4 — MUA end-to-end (medium).** Build the per-tetrode MUA over a multi-hour span via §6; report yield,
   retained-event shape stats, and how much of the >=10 MAD residual it accounts for.
 - **E5 — MUA validation, strictly downstream / non-circular (after E4).** Does the MUA rate modulate
-  Wake>NREM, silence during OFF periods, and align with mua-bugnon OFF detection? This is where state
+  Wake>NREM, silence during OFF periods, and align with morphological OFF detection? This is where state
   legitimately re-enters — checking the answer, not making it.
 
 **Metric discipline throughout:** coverage of >=10 MAD events **at fixed-or-better precision**; calibrate
